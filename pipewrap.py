@@ -131,9 +131,9 @@ class PipeWrap:
             LOG.warning("OK, retrying the command.")
             return self.send_command_and_wait_for_result(cmd, tmpfile, timeout)
         except TimeoutHappened:
-            if self.increment_current_num_retries():
-                LOG.warning("Timeout: Too many retries. Giving up")
-                return None
+            # if self.increment_current_num_retries():
+            #     LOG.warning("Timeout: Too many retries. Giving up")
+            #     return None
             LOG.warning("Timeout happened. Returning null.")
             # TODO: if many timeouts, should try a restart
             # self.start_pipe()
