@@ -11,7 +11,6 @@ LOG.setLevel("INFO")
 # LOG.setLevel("DEBUG")
 
 COMMAND = """
-set -eu; cd /users/brendano/myutil; 
 exec {JAVA} -Xmx{XMX_AMOUNT} -cp {CLASSPATH}
     corenlp.PipeCommandRunner {mode} {startup_tmp}"""
 
@@ -19,7 +18,7 @@ JAVA = "java"
 XMX_AMOUNT = "4g"
 
 CORENLP_LIBDIR = "/users/brendano/sw/nlp/stanford-corenlp-full-2014-01-04"
-LOCAL_LIBDIR = os.path.join(os.path.dirname(__file__), 'lib')
+LOCAL_LIBDIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'lib')
 
 CLASSPATH = ':'.join([
     os.path.join(LOCAL_LIBDIR, "piperunner.jar"),
