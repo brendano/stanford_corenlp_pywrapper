@@ -116,19 +116,20 @@ class PipeWrap:
             self.num_retries = 0   # set this only when super sure it succeeded
             return decoded
         except SubprocessCrashed:
-            LOG.warning("Subprocess crashed. Let's try restarting.")
             if self.increment_current_num_retries():
-                LOG.warning("Too many retries. Giving up")
+                LOG.warning("Subprocess creashed: Too many retries. Giving up")
                 return None
+            LOG.warning("Subprocess crashed. Restarting.")
             self.start_pipe()
             LOG.warning("OK, retrying the command.")
             return self.send_command_and_wait_for_result(cmd, tmpfile, timeout)
         except TimeoutHappened:
-            LOG.warning("Timeout happened. We will return null, after restarting the system for the next call.")
             if self.increment_current_num_retries():
-                LOG.warning("Too many retries. Giving up")
+                LOG.warning("Timeout: Too many retries. Giving up")
                 return None
-            self.start_pipe()
+            LOG.warning("Timeout happened. Returning null.")
+            # TODO: if many timeouts, should try a restart
+            # self.start_pipe()
             return None
         finally:
             delete_if_necessary(tmpfile)
