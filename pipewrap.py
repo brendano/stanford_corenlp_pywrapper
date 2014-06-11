@@ -35,7 +35,7 @@ PARSEDOC_TIMEOUT_SEC = 30
 STARTUP_TIMEOUT_SEC = 60*5
 NUM_RETRIES = 2
 
-TEMP_DIR = None   ## arg for mkstemp(dir=), so if None it default somewhere. I'd guess /tmp on all unix systems...
+TEMP_DIR = None   ## arg for mkstemp(dir=), so if None it defaults to somewhere
 
 def command(mode, startup_tmp):
     d = {}
@@ -62,7 +62,6 @@ def delete_if_necessary(filename):
 
 class SubprocessCrashed(Exception): pass
 class TimeoutHappened(Exception): pass
-class TooManyRetries(Exception): pass
 
 def mktemp(suffix):
     return tempfile.mkstemp(suffix, prefix="tmp.pipewrap.")
@@ -108,13 +107,14 @@ class PipeWrap:
         return self.send_command_and_wait_for_result(cmd, tmpfile, timeout)
 
     def send_command_and_wait_for_result(self, cmd, tmpfile, timeout):
-        # LOG.debug("command for subprocess: " + cmd)
         self.ensure_proc_is_running()
         self.proc.stdin.write(cmd)
         self.proc.stdin.write("\n")
         try:
-            data = self.wait_and_return_result(tmpfile, PARSEDOC_TIMEOUT_SEC)
-            return json.loads(data)
+            data = self.wait_and_return_result(tmpfile, timeout)
+            decoded = json.loads(data)
+            self.num_retries = 0   # set this only when super sure it succeeded
+            return decoded
         except SubprocessCrashed:
             LOG.warning("Subprocess crashed. Let's try restarting.")
             if self.increment_current_num_retries():
@@ -130,9 +130,6 @@ class PipeWrap:
                 return None
             self.start_pipe()
             return None
-        except TooManyRetries:
-            LOG.warning("Too many retries. returning None")
-            return None
         finally:
             delete_if_necessary(tmpfile)
 
@@ -141,8 +138,6 @@ class PipeWrap:
         if (self.num_retries >= NUM_RETRIES):
             return True
         return False
-            # LOG.warning("Too many retries! Crashing the whole program, TODO figure out a more sensible behavior")
-            # raise TooManyRetries()
 
     def crash(self):
         self.send_command_and_wait_for_result('CRASH\t/tmp/bogus\t"bogus"', "/tmp/bogus", 1)
@@ -199,8 +194,9 @@ def assert_no_java(msg=""):
 def test_doctimeout():
     assert_no_java("no java when starting")
 
-    p = PipeWrap("justparse")
-    p.parse_doc(open("allbrown.txt").read(), 0.5)
+    p = PipeWrap("pos")
+    ret = p.parse_doc(open("allbrown.txt").read(), 0.5)
+    assert ret is None
     p.kill_proc_if_running()
     assert_no_java()
 
