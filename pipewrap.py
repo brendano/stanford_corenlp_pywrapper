@@ -31,7 +31,7 @@ CLASSPATH = ':'.join([
 # If you parallelize a lot on one machine, could get file handle issues if this
 # is too small.
 BUSY_WAIT_INTERVAL_SEC = 10 * 1e-3
-PARSEDOC_TIMEOUT_SEC = 5
+PARSEDOC_TIMEOUT_SEC = 30
 STARTUP_TIMEOUT_SEC = 60*5
 NUM_RETRIES = 2
 
