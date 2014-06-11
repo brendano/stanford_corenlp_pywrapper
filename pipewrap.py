@@ -114,7 +114,12 @@ class PipeWrap:
         self.proc.stdin.write("\n")
         try:
             data = self.wait_and_return_result(tmpfile, timeout)
-            decoded = json.loads(data)
+            decoded = None
+            try:
+                decoded = json.loads(data)
+            except ValueError:
+                LOG.warning("Bad JSON returned from subprocess; returning null.")
+                return None
             self.num_retries = 0   # set this only when super sure it succeeded
             return decoded
         except SubprocessCrashed:
