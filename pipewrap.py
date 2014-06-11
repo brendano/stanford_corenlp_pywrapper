@@ -86,8 +86,10 @@ class PipeWrap:
 
     def ensure_proc_is_running(self):
         if self.proc is None:
+            # Has never been started
             self.start_pipe()
-        elif self.proc.poll():
+        elif self.proc.poll() is not None:
+            # Restart
             self.start_pipe()
 
     def kill_proc_if_running(self):
