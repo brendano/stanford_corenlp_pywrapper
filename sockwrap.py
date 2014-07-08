@@ -1,26 +1,28 @@
 """
-The pipe-based tempfile approach.
-this is kind of lame.
+the socket server approach.
+this is eventually the right way to do it, but not tested well yet
 """
 
 from __future__ import division
-import subprocess,tempfile,time,os,logging,re
+import subprocess,tempfile,time,os,logging,re,struct,socket,atexit
 try:
     import ujson as json
 except ImportError:
     import json
 
 logging.basicConfig()  # wtf, why we have to call this?
-LOG = logging.getLogger("StanfordPipeWrap")
+LOG = logging.getLogger("StanfordSocketWrap")
 LOG.setLevel("INFO")
 # LOG.setLevel("DEBUG")
 
 COMMAND = """
 exec {JAVA} -Xmx{XMX_AMOUNT} -cp {CLASSPATH}
-    corenlp.PipeCommandRunner {mode} {startup_tmp}"""
+    corenlp.PipeCommandRunner --server {server_port} {mode} {startup_tmp}"""
 
 JAVA = "java"
 XMX_AMOUNT = "4g"
+
+DEFAULT_SERVER_PORT = 12340
 
 CORENLP_LIBDIR = "/users/brendano/sw/nlp/stanford-corenlp-full-2014-01-04"
 LOCAL_LIBDIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'lib')
@@ -43,10 +45,10 @@ NUM_RETRIES = 2
 
 TEMP_DIR = None   ## arg for mkstemp(dir=), so if None it defaults to somewhere
 
-def command(mode, startup_tmp):
+def command(**kwargs):
     d = {}
     d.update(globals())
-    d.update(locals())
+    d.update(**kwargs)
     return COMMAND.format(**d).replace("\n"," ")
 
 def get_last_byte(fileobj, filename):
@@ -72,31 +74,40 @@ class TimeoutHappened(Exception): pass
 def mktemp(suffix):
     return tempfile.mkstemp(suffix, prefix="tmp.pipewrap.")
 
-class PipeWrap:
+class SockWrap:
 
-    def __init__(self, mode):
+    def __init__(self, mode, server_port=DEFAULT_SERVER_PORT):
         self.mode = mode
         self.proc = None
         self.num_retries = 0
-        self.start_pipe()
+        self.server_port = server_port
+        self.start_server()
 
-    def start_pipe(self):
+        # This probably is only half-reliable, but worth a shot.
+        atexit.register(self.kill_proc_if_running)
+
+    def __del__(self):
+        # This is also an unreliable way to ensure the subproc is gone, but might as well try
+        self.kill_proc_if_running()
+
+    def start_server(self):
         self.kill_proc_if_running()
         _,startup_tmp = mktemp(".ready")
-        cmd = command(mode=self.mode, startup_tmp=startup_tmp)
+        cmd = command(mode=self.mode, startup_tmp=startup_tmp, server_port=self.server_port)
         LOG.info("Starting pipe subprocess, and waiting for signal it's ready, with command: %s" % cmd)
         self.proc = subprocess.Popen(cmd, shell=True, stdin=subprocess.PIPE)
-        self.wait_and_return_result(startup_tmp, STARTUP_TIMEOUT_SEC)
+        self.wait_and_return_result_from_tempfile(startup_tmp, STARTUP_TIMEOUT_SEC)
         delete_if_necessary(startup_tmp)
+        time.sleep(0.1)
         LOG.info("Subprocess is ready.")
 
     def ensure_proc_is_running(self):
         if self.proc is None:
             # Has never been started
-            self.start_pipe()
+            self.start_server()
         elif self.proc.poll() is not None:
             # Restart
-            self.start_pipe()
+            self.start_server()
 
     def kill_proc_if_running(self):
         if self.proc is None:
@@ -110,16 +121,19 @@ class PipeWrap:
             os.kill(self.proc.pid, 9)
 
     def parse_doc(self, text, timeout=PARSEDOC_TIMEOUT_SEC):
-        tmpfd,tmpfile = mktemp(".parseout")
-        cmd = "PARSEDOC\t%s\t%s" % (tmpfile, json.dumps(text))
-        return self.send_command_and_wait_for_result(cmd, tmpfile, timeout)
+        cmd = "PARSEDOC\t%s" % json.dumps(text)
+        return self.send_command_and_wait_for_result(cmd, timeout)
 
-    def send_command_and_wait_for_result(self, cmd, tmpfile, timeout):
-        self.ensure_proc_is_running()
-        self.proc.stdin.write(cmd)
-        self.proc.stdin.write("\n")
+    def get_socket(self):
+        # could be smarter here about reusing the same socket?
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect(('localhost',self.server_port))
+        return sock
+
+    def send_command_and_wait_for_result(self, cmd, timeout):
         try:
-            data = self.wait_and_return_result(tmpfile, timeout)
+            self.ensure_proc_is_running()
+            data = self.run_command_and_wait_for_response(cmd, timeout)
             decoded = None
             try:
                 decoded = json.loads(data)
@@ -129,23 +143,37 @@ class PipeWrap:
             self.num_retries = 0   # set this only when super sure it succeeded
             return decoded
         except SubprocessCrashed:
+            # TODO dead code
             if self.increment_current_num_retries():
                 LOG.warning("Subprocess creashed: Too many retries. Giving up")
                 return None
             LOG.warning("Subprocess crashed. Restarting.")
-            self.start_pipe()
+            self.start_server()
             LOG.warning("OK, retrying the command.")
-            return self.send_command_and_wait_for_result(cmd, tmpfile, timeout)
+            return self.send_command_and_wait_for_result(cmd, timeout)
         except TimeoutHappened:
+            # TODO dead code
             # if self.increment_current_num_retries():
             #     LOG.warning("Timeout: Too many retries. Giving up")
             #     return None
             LOG.warning("Timeout happened. Returning null.")
             # TODO: if many timeouts, should try a restart
-            # self.start_pipe()
+            # self.start_server()
             return None
-        finally:
-            delete_if_necessary(tmpfile)
+
+    def run_command_and_wait_for_response(self, cmd, timeout):
+        sock = self.get_socket()
+        sock.settimeout(timeout)
+        sock.sendall(cmd + "\n")
+        size_info_str = sock.recv(8)
+        # java "long" is 8 bytes, which python struct calls "long long".
+        # java default byte ordering is big-endian.
+        size_info = struct.unpack('>Q', size_info_str)[0]
+        try:
+            data = sock.recv(size_info)
+            return data
+        except socket.timeout:
+            raise TimeoutHappened()
 
     def increment_current_num_retries(self):
         self.num_retries += 1
@@ -153,12 +181,9 @@ class PipeWrap:
             return True
         return False
 
-    def crash(self):
-        self.send_command_and_wait_for_result('CRASH\t/tmp/bogus\t"bogus"', "/tmp/bogus", 1)
-
-    def wait_and_return_result(self, tmpfile, timeout):
+    def wait_and_return_result_from_tempfile(self, tmpfile, timeout):
         LOG.debug("waiting on %s" % tmpfile)
-        fp = self.wait_for_finish(tmpfile, timeout)
+        fp = self.wait_for_finish_from_tempfile(tmpfile, timeout)
         LOG.debug("file wait done.")
         fp.seek(0)
         data = fp.read()
@@ -167,7 +192,8 @@ class PipeWrap:
         LOG.debug("file %s had %s size payload" % (tmpfile, len(data)))
         return data[:-1]
 
-    def wait_for_finish(self,tmpfile, timeout):
+
+    def wait_for_finish_from_tempfile(self,tmpfile, timeout):
         """Busy wait..."""
         start = time.time()
         while True:
@@ -190,7 +216,7 @@ class PipeWrap:
 def test_simple():
     assert_no_java("no java when starting")
 
-    p = PipeWrap("ssplit")
+    p = SockWrap("ssplit")
     ret = p.parse_doc("Hello world.")
     print ret
     assert len(ret['sentences'])==1
@@ -205,21 +231,21 @@ def assert_no_java(msg=""):
     print ''.join(javalines)
     assert len(javalines)==0, msg
 
-def test_doctimeout():
-    assert_no_java("no java when starting")
-
-    p = PipeWrap("pos")
-    ret = p.parse_doc(open("allbrown.txt").read(), 0.5)
-    assert ret is None
-    p.kill_proc_if_running()
-    assert_no_java()
-
-def test_crash():
-    assert_no_java("no java when starting")
-    p = PipeWrap("ssplit")
-    p.crash()
-    ret = p.parse_doc("Hello world.")
-    assert len(ret['sentences'])==1
-
-    p.kill_proc_if_running()
-    assert_no_java()
+# def test_doctimeout():
+#     assert_no_java("no java when starting")
+# 
+#     p = SockWrap("pos")
+#     ret = p.parse_doc(open("allbrown.txt").read(), 0.5)
+#     assert ret is None
+#     p.kill_proc_if_running()
+#     assert_no_java()
+# 
+# def test_crash():
+#     assert_no_java("no java when starting")
+#     p = SockWrap("ssplit")
+#     p.crash()
+#     ret = p.parse_doc("Hello world.")
+#     assert len(ret['sentences'])==1
+# 
+#     p.kill_proc_if_running()
+#     assert_no_java()
