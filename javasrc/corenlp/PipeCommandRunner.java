@@ -16,22 +16,29 @@ import util.U;
 
 /** 
  * TWO MODES OF OPERATION:
- * (1) stdin-based pipe control, output to temp files
- * (2) sockets
+ * (1) sockets
+ * (2) stdin-based pipe control, output to temp files.  this is lame.
  * 
- * #1 is lame.
+ * == Protocol for sockets ==
  * 
- * (1) Protocol for sockets: one line for input, one line for output.
- * 
- * command is a single line with two tab-separated fields:
- *     PARSEDOC \t "Hello world."
+ * Input is a single line with two tab-separated fields, ending with a newline:
+ *     PARSEDOC \t "Hello world." \n
  * first field is the command name.  second field is the text of the document as a JSON string.
- * NO NEWLINES ALLOWED!  Most JSON libraries escape newlines to \n's so you should be safe.
+ * NO NEWLINES ALLOWED IN THE TEXT DATA!  Most JSON libraries escape newlines to \n's so you should be safe.
  * 
- * Output is a big-ass JSON object, all in one line.
+ * Output is 
+ * 1. big-endian 8-byte integer describing how many bytes the reponse will be.
+ * 2. a big-ass JSON object of that length.
  * 
- * 
- * (2) Protocol for pipe/tempfiles:
+ * For example:
+ *  $ java -cp [blablabla] corenlp.PipeCommandRunner --server 1234 pos
+ *  $ echo -e 'PARSEDOC\t"hello world."' | nc localhost 1234 | xxd
+ *  The first few xxd lines are:
+0000000: 0000 0000 0000 00b3 7b22 7365 6e74 656e  ........{"senten
+0000010: 6365 7322 3a5b 7b22 706f 7322 3a5b 2255  ces":[{"pos":["U
+0000020: 4822 2c22 4e4e 222c 222e 225d 2c22 746f  H","NN","."],"to
+
+ * == Protocol for pipe/tempfiles ==
  * 
  * intended to have stdin be a pipe, and not do anything on stdout. 
  * caller has to be smart about checking for the output file. sigh.
