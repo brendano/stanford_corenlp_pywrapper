@@ -17,7 +17,7 @@ LOG.setLevel("INFO")
 
 COMMAND = """
 exec {JAVA} -Xmx{XMX_AMOUNT} -cp {CLASSPATH}
-    corenlp.PipeCommandRunner --server {server_port} {mode} {startup_tmp}"""
+    corenlp.PipeCommandRunner --server {server_port} {mode}"""
 
 JAVA = "java"
 XMX_AMOUNT = "4g"
@@ -36,12 +36,8 @@ CLASSPATH = ':'.join([
     os.path.join(CORENLP_LIBDIR, "stanford-corenlp-3.3.1-models.jar"),
 ])
 
-# If you parallelize a lot on one machine, could get file handle issues if this
-# is too small.
-BUSY_WAIT_INTERVAL_SEC = 10 * 1e-3
-PARSEDOC_TIMEOUT_SEC = 30
-STARTUP_TIMEOUT_SEC = 60*5
-NUM_RETRIES = 2
+PARSEDOC_TIMEOUT_SEC = 60*5
+STARTUP_BUSY_WAIT_INTERVAL_SEC = 0.2
 
 TEMP_DIR = None   ## arg for mkstemp(dir=), so if None it defaults to somewhere
 
@@ -51,35 +47,13 @@ def command(**kwargs):
     d.update(**kwargs)
     return COMMAND.format(**d).replace("\n"," ")
 
-def get_last_byte(fileobj, filename):
-    stat = os.stat(filename)
-    if stat.st_size==0:
-        return None
-    fileobj.seek(stat.st_size - 1)
-    char = fileobj.read(1)
-    if char=='':
-        # Something went wrong: the file is smaller than os.stat thinks it is.
-        # maybe a weird sync issue.
-        # or the file is just empty...
-        pass
-    return char
-
-def delete_if_necessary(filename):
-    if os.path.exists(filename):
-        os.unlink(filename)
-
 class SubprocessCrashed(Exception): pass
-class TimeoutHappened(Exception): pass
-
-def mktemp(suffix):
-    return tempfile.mkstemp(suffix, prefix="tmp.pipewrap.")
 
 class SockWrap:
 
     def __init__(self, mode, server_port=DEFAULT_SERVER_PORT):
         self.mode = mode
         self.proc = None
-        self.num_retries = 0
         self.server_port = server_port
         self.start_server()
 
@@ -92,13 +66,21 @@ class SockWrap:
 
     def start_server(self):
         self.kill_proc_if_running()
-        _,startup_tmp = mktemp(".ready")
-        cmd = command(mode=self.mode, startup_tmp=startup_tmp, server_port=self.server_port)
+        cmd = command(mode=self.mode, server_port=self.server_port)
         LOG.info("Starting pipe subprocess, and waiting for signal it's ready, with command: %s" % cmd)
-        self.proc = subprocess.Popen(cmd, shell=True, stdin=subprocess.PIPE)
-        self.wait_and_return_result_from_tempfile(startup_tmp, STARTUP_TIMEOUT_SEC)
-        delete_if_necessary(startup_tmp)
-        time.sleep(0.1)
+        self.proc = subprocess.Popen(cmd, shell=True)
+        while True:
+            time.sleep(STARTUP_BUSY_WAIT_INTERVAL_SEC)
+            try:
+                ret = self.send_command_and_parse_result('PING\t""', 0.1)
+                if ret is None:
+                    continue
+                assert ret=="PONG", "Bad return data on startup ping: " + ret
+                LOG.info("Successful ping. The server has started.")
+                break
+            except socket.error, e:
+                LOG.info("Waiting for startup: ping got exception: %s %s" % (type(e), e))
+
         LOG.info("Subprocess is ready.")
 
     def ensure_proc_is_running(self):
@@ -122,7 +104,7 @@ class SockWrap:
 
     def parse_doc(self, text, timeout=PARSEDOC_TIMEOUT_SEC):
         cmd = "PARSEDOC\t%s" % json.dumps(text)
-        return self.send_command_and_wait_for_result(cmd, timeout)
+        return self.send_command_and_parse_result(cmd, timeout)
 
     def get_socket(self):
         # could be smarter here about reusing the same socket?
@@ -130,38 +112,26 @@ class SockWrap:
         sock.connect(('localhost',self.server_port))
         return sock
 
-    def send_command_and_wait_for_result(self, cmd, timeout):
+    def send_command_and_parse_result(self, cmd, timeout):
         try:
             self.ensure_proc_is_running()
-            data = self.run_command_and_wait_for_response(cmd, timeout)
+            data = self.send_command_and_get_string_result(cmd, timeout)
             decoded = None
             try:
                 decoded = json.loads(data)
             except ValueError:
                 LOG.warning("Bad JSON returned from subprocess; returning null.")
                 return None
-            self.num_retries = 0   # set this only when super sure it succeeded
             return decoded
-        except SubprocessCrashed:
-            # TODO dead code
-            if self.increment_current_num_retries():
-                LOG.warning("Subprocess creashed: Too many retries. Giving up")
-                return None
-            LOG.warning("Subprocess crashed. Restarting.")
-            self.start_server()
-            LOG.warning("OK, retrying the command.")
-            return self.send_command_and_wait_for_result(cmd, timeout)
-        except TimeoutHappened:
-            # TODO dead code
-            # if self.increment_current_num_retries():
-            #     LOG.warning("Timeout: Too many retries. Giving up")
-            #     return None
-            LOG.warning("Timeout happened. Returning null.")
-            # TODO: if many timeouts, should try a restart
-            # self.start_server()
+        except socket.timeout, e:
+            LOG.info("Socket timeout happened, returning None: %s %s" % (type(e), e))
             return None
+            # This is tricky. maybe the process is running smoothly but just
+            # taking longer than we like.  if it's in thie state, and we try to
+            # send another command, what happens?  Should we forcibly restart
+            # the process now just in case?
 
-    def run_command_and_wait_for_response(self, cmd, timeout):
+    def send_command_and_get_string_result(self, cmd, timeout):
         sock = self.get_socket()
         sock.settimeout(timeout)
         sock.sendall(cmd + "\n")
@@ -169,49 +139,8 @@ class SockWrap:
         # java "long" is 8 bytes, which python struct calls "long long".
         # java default byte ordering is big-endian.
         size_info = struct.unpack('>Q', size_info_str)[0]
-        try:
-            data = sock.recv(size_info)
-            return data
-        except socket.timeout:
-            raise TimeoutHappened()
-
-    def increment_current_num_retries(self):
-        self.num_retries += 1
-        if (self.num_retries >= NUM_RETRIES):
-            return True
-        return False
-
-    def wait_and_return_result_from_tempfile(self, tmpfile, timeout):
-        LOG.debug("waiting on %s" % tmpfile)
-        fp = self.wait_for_finish_from_tempfile(tmpfile, timeout)
-        LOG.debug("file wait done.")
-        fp.seek(0)
-        data = fp.read()
-        fp.close()
-        assert data[-1]=='\0'
-        LOG.debug("file %s had %s size payload" % (tmpfile, len(data)))
-        return data[:-1]
-
-
-    def wait_for_finish_from_tempfile(self,tmpfile, timeout):
-        """Busy wait..."""
-        start = time.time()
-        while True:
-            if time.time() - start > timeout:
-                raise TimeoutHappened()
-            retcode = self.proc.poll()
-            if retcode is not None:
-                LOG.warning("Subprocess seems to have crashed with code: %s" % retcode)
-                raise SubprocessCrashed()
-            if not os.path.exists(tmpfile):
-                pass
-            else:
-                fp = open(tmpfile)
-                last = get_last_byte(fp,tmpfile)
-                if last=='\0':
-                    return fp
-                fp.close()
-            time.sleep(BUSY_WAIT_INTERVAL_SEC)
+        data = sock.recv(size_info)
+        return data
 
 def test_simple():
     assert_no_java("no java when starting")

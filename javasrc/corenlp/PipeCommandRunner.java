@@ -69,18 +69,18 @@ public class PipeCommandRunner {
 			args = Arr.subArray(args, 2, args.length);
 		}
 		String mode = args[0];
-		String reportReadyTempfile = args[1];
+		String reportReadyTempfile = args.length>1 ? args[1] : null;
 		
 		runner.parser = new Parse();
 		runner.parser.mode = Parse.modeFromString(mode);
 		if (runner.parser.mode==null) throw new RuntimeException();
 		runner.parser.setAnnotatorsFromMode();
 
-		BasicFileIO.writeFile("\0", reportReadyTempfile);
 
 		if (doServer) {
 			runner.socketServerLoop();
 		} else {
+			BasicFileIO.writeFile("\0", reportReadyTempfile);
 			runner.stdinLoop();
 		}
 	}
@@ -112,6 +112,8 @@ public class PipeCommandRunner {
 			return parser.processTextDocument(text);
 		case "CRASH":
 			throw new IOException("fake error");
+		case "PING":
+			return JsonUtil.toJson("PONG");
 		default:
 			throw new RuntimeException("bad command: " + command);
 		}
