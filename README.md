@@ -6,7 +6,7 @@ https://bitbucket.org/torotoki/corenlp-python
 https://github.com/dasmith/stanford-corenlp-python
 
 
-=== Usage ===
+##Usage
 
 The return values are JSON-safe data structures (in fact, the python<->java
 communication is a JSON protocol).
@@ -18,6 +18,7 @@ Note some of these messages are stderr from the CoreNLP subprocess. everything
 starting with INFO: is from the Python logging system and is from the parent
 process.
 
+```
 >>> import sockwrap
 >>> p=sockwrap.SockWrap("pos")
 
@@ -74,4 +75,4 @@ INFO:StanfordSocketWrap:Subprocess is ready.
         }
     ]
 }
-
+```

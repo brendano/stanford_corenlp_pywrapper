@@ -16,7 +16,7 @@ LOG.setLevel("INFO")
 # LOG.setLevel("DEBUG")
 
 COMMAND = """
-exec {JAVA} -Xmx{XMX_AMOUNT} -cp {CLASSPATH}
+exec {JAVA} -Xmx{XMX_AMOUNT} -cp {classpath}
     corenlp.PipeCommandRunner --server {server_port} {mode}"""
 
 JAVA = "java"
@@ -24,38 +24,48 @@ XMX_AMOUNT = "4g"
 
 DEFAULT_SERVER_PORT = 12340
 
-CORENLP_LIBDIR = "/users/brendano/sw/nlp/stanford-corenlp-full-2014-01-04"
-LOCAL_LIBDIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'lib')
-
-CLASSPATH = ':'.join([
-    os.path.join(LOCAL_LIBDIR, "piperunner.jar"),
-    # "/Users/brendano/myutil/bin", # for eclipse development only
-    os.path.join(LOCAL_LIBDIR, "guava-13.0.1.jar"),
-    os.path.join(LOCAL_LIBDIR, "jackson-all-1.9.11.jar"),
-    os.path.join(CORENLP_LIBDIR, "stanford-corenlp-3.3.1.jar"),
-    os.path.join(CORENLP_LIBDIR, "stanford-corenlp-3.3.1-models.jar"),
-])
-
-PARSEDOC_TIMEOUT_SEC = 60*5
+PARSEDOC_TIMEOUT_SEC = 60 * 5
 STARTUP_BUSY_WAIT_INTERVAL_SEC = 0.2
 
-TEMP_DIR = None   ## arg for mkstemp(dir=), so if None it defaults to somewhere
+#arg for mkstemp(dir=), so if None it defaults to somewhere
+TEMP_DIR = None
+
 
 def command(**kwargs):
     d = {}
     d.update(globals())
     d.update(**kwargs)
-    return COMMAND.format(**d).replace("\n"," ")
+    return COMMAND.format(**d).replace("\n", " ")
 
 class SubprocessCrashed(Exception): pass
 
+
 class SockWrap:
 
-    def __init__(self, mode, server_port=DEFAULT_SERVER_PORT):
+    def __init__(self, mode, server_port=DEFAULT_SERVER_PORT, corenlp_libdir=None):
         self.mode = mode
         self.proc = None
         self.server_port = server_port
         self.start_server()
+
+        if not corenlp_libdir:
+            corenlp_libdir = "/users/brendano/sw/nlp/stanford-corenlp-full-2014-01-04"
+        local_libdir = os.path.join(os.path.abspath(os.path.dirname(__file__)),
+                                    'lib')
+
+        self.classpath = ':'.join([os.path.join(local_libdir,
+                                                "piperunner.jar"),
+                                   # for eclipse development only
+                                   # "/Users/brendano/myutil/bin",
+                                   os.path.join(local_libdir,
+                                                "guava-13.0.1.jar"),
+                                   os.path.join(local_libdir,
+                                                "jackson-all-1.9.11.jar"),
+                                   os.path.join(corenlp_libdir,
+                                                "stanford-corenlp-3.3.1.jar"),
+                                   os.path.join(corenlp_libdir,
+                                                "stanford-corenlp-3.3.1-models.jar"),
+                                   ])
 
         # This probably is only half-reliable, but worth a shot.
         atexit.register(self.kill_proc_if_running)
@@ -66,7 +76,8 @@ class SockWrap:
 
     def start_server(self):
         self.kill_proc_if_running()
-        cmd = command(mode=self.mode, server_port=self.server_port)
+        cmd = command(mode=self.mode, server_port=self.server_port,
+                      classpath=self.classpath)
         LOG.info("Starting pipe subprocess, and waiting for signal it's ready, with command: %s" % cmd)
         self.proc = subprocess.Popen(cmd, shell=True)
         while True:
@@ -162,19 +173,19 @@ def assert_no_java(msg=""):
 
 # def test_doctimeout():
 #     assert_no_java("no java when starting")
-# 
+#
 #     p = SockWrap("pos")
 #     ret = p.parse_doc(open("allbrown.txt").read(), 0.5)
 #     assert ret is None
 #     p.kill_proc_if_running()
 #     assert_no_java()
-# 
+#
 # def test_crash():
 #     assert_no_java("no java when starting")
 #     p = SockWrap("ssplit")
 #     p.crash()
 #     ret = p.parse_doc("Hello world.")
 #     assert len(ret['sentences'])==1
-# 
+#
 #     p.kill_proc_if_running()
 #     assert_no_java()
