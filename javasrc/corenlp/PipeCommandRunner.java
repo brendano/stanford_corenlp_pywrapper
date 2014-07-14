@@ -70,23 +70,32 @@ public class PipeCommandRunner {
 	public static void main(String[] args) throws Exception {
 		boolean doServer = false;
 		PipeCommandRunner runner = new PipeCommandRunner();
-		if (args[0].equals("--server")) {
-			doServer = true;
-			runner.port = Integer.parseInt(args[1]);
-			args = Arr.subArray(args, 2, args.length);
-		}
-		String mode = args[0];
-		String reportReadyTempfile = args.length>1 ? args[1] : null;
-		
 		runner.parser = new Parse();
-		runner.parser.mode = Parse.modeFromString(mode);
-		if (runner.parser.mode==null) throw new RuntimeException();
-		runner.parser.setAnnotatorsFromMode();
 
+		while (args.length > 1) {
+			if (args[0].equals("--server")) {
+				doServer = true;
+				runner.port = Integer.parseInt(args[1]);
+				args = Arr.subArray(args, 2, args.length);
+			}
+			else if (args[0].equals("--configfile")) {
+				System.err.println("[Server] Using CoreNLP configuration file: " + args[1]);
+				runner.parser.setConfigurationFromFile(args[1]);
+				args = Arr.subArray(args, 2, args.length);
+			}
+			else if (args[0].equals("--mode")) {
+				System.err.println("[Server] Using mode type: " + args[1]);
+				runner.parser.mode = Parse.modeFromString(args[1]);
+				if (runner.parser.mode==null) throw new RuntimeException("bad mode " + args[1]);
+				runner.parser.setAnnotatorsFromMode();
+				args = Arr.subArray(args, 2, args.length);
+			}
+		}
 
 		if (doServer) {
 			runner.socketServerLoop();
 		} else {
+			String reportReadyTempfile = args[0];
 			BasicFileIO.writeFile("\0", reportReadyTempfile);
 			runner.stdinLoop();
 		}

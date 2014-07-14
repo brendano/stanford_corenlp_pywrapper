@@ -1,5 +1,8 @@
 package corenlp;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -178,6 +181,12 @@ public class Parse {
 			deps.add(deptriple);
 		}
 		return deps;
+	}
+	
+	public void setConfigurationFromFile(String iniPropertiesFilename) throws FileNotFoundException, IOException {
+		Properties props = new Properties();
+		props.load(new FileInputStream(iniPropertiesFilename));
+		pipeline = new StanfordCoreNLP(props);
 	}
 	
 	public void setAnnotatorsFromMode() {

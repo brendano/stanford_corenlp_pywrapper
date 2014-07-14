@@ -17,7 +17,7 @@ LOG.setLevel("INFO")
 
 COMMAND = """
 exec {JAVA} -Xmx{XMX_AMOUNT} -cp {classpath}
-    corenlp.PipeCommandRunner --server {server_port} {mode}"""
+    corenlp.PipeCommandRunner --server {server_port} {more_config}"""
 
 JAVA = "java"
 XMX_AMOUNT = "4g"
@@ -29,10 +29,19 @@ STARTUP_BUSY_WAIT_INTERVAL_SEC = 0.2
 TEMP_DIR = None
 
 
-def command(**kwargs):
+def command(mode=None, configfile=None, **kwargs):
     d = {}
     d.update(globals())
     d.update(**kwargs)
+
+    more_config = ""
+    if mode:
+        more_config += " --mode {}".format(mode)
+    if configfile:
+        more_config += " --configfile {}".format(configfile)
+    d['more_config'] = more_config
+        
+    
     return COMMAND.format(**d).replace("\n", " ")
 
 
@@ -42,10 +51,11 @@ class SubprocessCrashed(Exception):
 
 class SockWrap:
 
-    def __init__(self, mode, server_port=12340, corenlp_libdir=''):
+    def __init__(self, mode, server_port=12340, configfile=None, corenlp_libdir=''):
         self.mode = mode
         self.proc = None
         self.server_port = server_port
+        self.configfile = configfile
         self.corenlp_libdir = corenlp_libdir
 
         if not corenlp_libdir:
@@ -67,7 +77,8 @@ class SockWrap:
                                                 "stanford-corenlp-3.3.1-models.jar"),
                                    ])
 
-        print self.classpath
+        # LOG.info("CLASSPATH: " + self.classpath)
+        
 
         self.start_server()
         # This probably is only half-reliable, but worth a shot.
@@ -81,6 +92,7 @@ class SockWrap:
     def start_server(self):
         self.kill_proc_if_running()
         cmd = command(mode=self.mode, server_port=self.server_port,
+                      configfile=self.configfile,
                       classpath=self.classpath)
         LOG.info("Starting pipe subprocess, and waiting for signal it's ready, with command: %s" % cmd)
         self.proc = subprocess.Popen(cmd, shell=True)
