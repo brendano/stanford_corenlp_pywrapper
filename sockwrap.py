@@ -49,7 +49,8 @@ class SockWrap:
         self.corenlp_libdir = corenlp_libdir
 
         if not corenlp_libdir:
-            corenlp_libdir = "~/stanford-corenlp"
+            corenlp_libdir = os.environ['HOME'] + "/stanford-corenlp"
+            
         local_libdir = os.path.join(os.path.abspath(os.path.dirname(__file__)),
                                     'lib')
 
