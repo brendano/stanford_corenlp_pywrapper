@@ -1,19 +1,25 @@
-EXPERIMENTAL DO NOT USE WITHOUT LOTS OF TESTING
+**EXPERIMENTAL DO NOT USE WITHOUT LOTS OF TESTING**
+
 java files copied from github.com/brendano/myutil
+
 License GPL version 2 or later
+
 see also
-https://bitbucket.org/torotoki/corenlp-python
-https://github.com/dasmith/stanford-corenlp-python
+* https://bitbucket.org/torotoki/corenlp-python
+* https://github.com/dasmith/stanford-corenlp-python
 
 
 ##Usage
 
 The return values are JSON-safe data structures (in fact, the python<->java
 communication is a JSON protocol).
-see javasrc/corenlp/Parse.java for the allowable pipeline types.
-TODO allow full CoreNLP configuration
-TODO downgrade most of the messages to DEBUG not INFO once we think this code
-works ok
+
+See javasrc/corenlp/Parse.java for the allowable pipeline types.
+
+TODO List:
+* Allow full CoreNLP configuration
+* Downgrade most of the messages to DEBUG not INFO once we think this code works ok
+
 Note some of these messages are stderr from the CoreNLP subprocess. everything
 starting with INFO: is from the Python logging system and is from the parent
 process.
