@@ -40,8 +40,8 @@ def command(mode=None, configfile=None, **kwargs):
     if configfile:
         more_config += " --configfile {}".format(configfile)
     d['more_config'] = more_config
-        
-    
+
+
     return COMMAND.format(**d).replace("\n", " ")
 
 
@@ -60,7 +60,6 @@ class SockWrap:
 
         if not corenlp_libdir:
             corenlp_libdir = os.environ['HOME'] + "/stanford-corenlp"
-            
         local_libdir = os.path.join(os.path.abspath(os.path.dirname(__file__)),
                                     'lib')
 
@@ -78,7 +77,7 @@ class SockWrap:
                                    ])
 
         # LOG.info("CLASSPATH: " + self.classpath)
-        
+
 
         self.start_server()
         # This probably is only half-reliable, but worth a shot.
