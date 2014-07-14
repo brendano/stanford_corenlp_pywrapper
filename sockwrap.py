@@ -4,7 +4,7 @@ this is eventually the right way to do it, but not tested well yet
 """
 
 from __future__ import division
-import subprocess,tempfile,time,os,logging,re,struct,socket,atexit
+import subprocess, tempfile, time, os, logging, re, struct, socket, atexit
 try:
     import ujson as json
 except ImportError:
@@ -16,57 +16,71 @@ LOG.setLevel("INFO")
 # LOG.setLevel("DEBUG")
 
 COMMAND = """
-exec {JAVA} -Xmx{XMX_AMOUNT} -cp {CLASSPATH}
+exec {JAVA} -Xmx{XMX_AMOUNT} -cp {classpath}
     corenlp.PipeCommandRunner --server {server_port} {mode}"""
 
 JAVA = "java"
 XMX_AMOUNT = "4g"
 
-DEFAULT_SERVER_PORT = 12340
-
-CORENLP_LIBDIR = "/users/brendano/sw/nlp/stanford-corenlp-full-2014-01-04"
-LOCAL_LIBDIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'lib')
-
-CLASSPATH = ':'.join([
-    os.path.join(LOCAL_LIBDIR, "piperunner.jar"),
-    # "/Users/brendano/myutil/bin", # for eclipse development only
-    os.path.join(LOCAL_LIBDIR, "guava-13.0.1.jar"),
-    os.path.join(LOCAL_LIBDIR, "jackson-all-1.9.11.jar"),
-    os.path.join(CORENLP_LIBDIR, "stanford-corenlp-3.3.1.jar"),
-    os.path.join(CORENLP_LIBDIR, "stanford-corenlp-3.3.1-models.jar"),
-])
-
-PARSEDOC_TIMEOUT_SEC = 60*5
+PARSEDOC_TIMEOUT_SEC = 60 * 5
 STARTUP_BUSY_WAIT_INTERVAL_SEC = 0.2
 
-TEMP_DIR = None   ## arg for mkstemp(dir=), so if None it defaults to somewhere
+#arg for mkstemp(dir=), so if None it defaults to somewhere
+TEMP_DIR = None
+
 
 def command(**kwargs):
     d = {}
     d.update(globals())
     d.update(**kwargs)
-    return COMMAND.format(**d).replace("\n"," ")
+    return COMMAND.format(**d).replace("\n", " ")
 
-class SubprocessCrashed(Exception): pass
+
+class SubprocessCrashed(Exception):
+    pass
+
 
 class SockWrap:
 
-    def __init__(self, mode, server_port=DEFAULT_SERVER_PORT):
+    def __init__(self, mode, server_port=12340, corenlp_libdir=''):
         self.mode = mode
         self.proc = None
         self.server_port = server_port
-        self.start_server()
+        self.corenlp_libdir = corenlp_libdir
 
+        if not corenlp_libdir:
+            corenlp_libdir = "~/stanford-corenlp"
+        local_libdir = os.path.join(os.path.abspath(os.path.dirname(__file__)),
+                                    'lib')
+
+        self.classpath = ':'.join([os.path.join(local_libdir,
+                                                "piperunner.jar"),
+                                   # for eclipse development only
+                                   # "/Users/brendano/myutil/bin",
+                                   os.path.join(local_libdir,
+                                                "guava-13.0.1.jar"),
+                                   os.path.join(local_libdir,
+                                                "jackson-all-1.9.11.jar"),
+                                   os.path.join(corenlp_libdir, "stanford-corenlp-3.3.1.jar"),
+                                   os.path.join(corenlp_libdir,
+                                                "stanford-corenlp-3.3.1-models.jar"),
+                                   ])
+
+        print self.classpath
+
+        self.start_server()
         # This probably is only half-reliable, but worth a shot.
         atexit.register(self.kill_proc_if_running)
 
     def __del__(self):
-        # This is also an unreliable way to ensure the subproc is gone, but might as well try
+        # This is also an unreliable way to ensure the subproc is gone, but
+        # might as well try
         self.kill_proc_if_running()
 
     def start_server(self):
         self.kill_proc_if_running()
-        cmd = command(mode=self.mode, server_port=self.server_port)
+        cmd = command(mode=self.mode, server_port=self.server_port,
+                      classpath=self.classpath)
         LOG.info("Starting pipe subprocess, and waiting for signal it's ready, with command: %s" % cmd)
         self.proc = subprocess.Popen(cmd, shell=True)
         while True:
@@ -75,7 +89,7 @@ class SockWrap:
                 ret = self.send_command_and_parse_result('PING\t""', 0.1)
                 if ret is None:
                     continue
-                assert ret=="PONG", "Bad return data on startup ping: " + ret
+                assert ret == "PONG", "Bad return data on startup ping: " + ret
                 LOG.info("Successful ping. The server has started.")
                 break
             except socket.error, e:
@@ -109,7 +123,7 @@ class SockWrap:
     def get_socket(self):
         # could be smarter here about reusing the same socket?
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect(('localhost',self.server_port))
+        sock.connect(('localhost', self.server_port))
         return sock
 
     def send_command_and_parse_result(self, cmd, timeout):
@@ -142,39 +156,41 @@ class SockWrap:
         data = sock.recv(size_info)
         return data
 
+
 def test_simple():
     assert_no_java("no java when starting")
 
     p = SockWrap("ssplit")
     ret = p.parse_doc("Hello world.")
     print ret
-    assert len(ret['sentences'])==1
+    assert len(ret['sentences']) == 1
     assert u' '.join(ret['sentences'][0]['tokens']) == u"Hello world ."
 
     p.kill_proc_if_running()
     assert_no_java()
 
+
 def assert_no_java(msg=""):
     ps_output = os.popen("ps wux").readlines()
     javalines = [x for x in ps_output if re.search(r'\bbin/java\b', x)]
     print ''.join(javalines)
-    assert len(javalines)==0, msg
+    assert len(javalines) == 0, msg
 
 # def test_doctimeout():
 #     assert_no_java("no java when starting")
-# 
+#
 #     p = SockWrap("pos")
 #     ret = p.parse_doc(open("allbrown.txt").read(), 0.5)
 #     assert ret is None
 #     p.kill_proc_if_running()
 #     assert_no_java()
-# 
+#
 # def test_crash():
 #     assert_no_java("no java when starting")
 #     p = SockWrap("ssplit")
 #     p.crash()
 #     ret = p.parse_doc("Hello world.")
 #     assert len(ret['sentences'])==1
-# 
+#
 #     p.kill_proc_if_running()
 #     assert_no_java()
