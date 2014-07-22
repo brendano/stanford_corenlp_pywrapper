@@ -17,7 +17,6 @@ communication is a JSON protocol).
 See javasrc/corenlp/Parse.java for the allowable pipeline types.
 
 TODO List:
-* Allow full CoreNLP configuration
 * Downgrade most of the messages to DEBUG not INFO once we think this code works ok
 
 Note some of these messages are stderr from the CoreNLP subprocess. everything
