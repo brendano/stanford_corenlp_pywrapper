@@ -12,6 +12,15 @@ This wrapper assumes the use of CoreNLP 3.4 and the new
 [shift-reduce](http://nlp.stanford.edu/software/srparser.shtml). The `sample.ini` config file is
 setup to use these options.
 
+##Install
+
+You can install the program using something like:
+
+```
+git clone https://github.com/brendano/stanford-corepywrapper
+pip install stanford-corepywrapper
+```
+
 ##Usage
 
 The return values are JSON-safe data structures (in fact, the python<->java
