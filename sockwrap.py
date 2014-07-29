@@ -23,7 +23,7 @@ JAVA = "java"
 XMX_AMOUNT = "4g"
 
 PARSEDOC_TIMEOUT_SEC = 60 * 5
-STARTUP_BUSY_WAIT_INTERVAL_SEC = 0.2
+STARTUP_BUSY_WAIT_INTERVAL_SEC = 2.0
 
 #arg for mkstemp(dir=), so if None it defaults to somewhere
 TEMP_DIR = None
@@ -40,8 +40,8 @@ def command(mode=None, configfile=None, **kwargs):
     if configfile:
         more_config += " --configfile {}".format(configfile)
     d['more_config'] = more_config
-        
-    
+
+
     return COMMAND.format(**d).replace("\n", " ")
 
 
@@ -51,7 +51,7 @@ class SubprocessCrashed(Exception):
 
 class SockWrap:
 
-    def __init__(self, mode, server_port=12340, configfile=None, corenlp_libdir=''):
+    def __init__(self, mode=None, server_port=12340, configfile=None, corenlp_libdir=''):
         self.mode = mode
         self.proc = None
         self.server_port = server_port
@@ -60,7 +60,6 @@ class SockWrap:
 
         if not corenlp_libdir:
             corenlp_libdir = os.environ['HOME'] + "/stanford-corenlp"
-            
         local_libdir = os.path.join(os.path.abspath(os.path.dirname(__file__)),
                                     'lib')
 
@@ -72,13 +71,15 @@ class SockWrap:
                                                 "guava-13.0.1.jar"),
                                    os.path.join(local_libdir,
                                                 "jackson-all-1.9.11.jar"),
-                                   os.path.join(corenlp_libdir, "stanford-corenlp-3.3.1.jar"),
+                                   os.path.join(corenlp_libdir, "stanford-corenlp-3.4.jar"),
                                    os.path.join(corenlp_libdir,
-                                                "stanford-corenlp-3.3.1-models.jar"),
+                                                "stanford-corenlp-3.4-models.jar"),
+                                   os.path.join(corenlp_libdir,
+                                                "stanford-srparser-2014-07-01-models.jar")
                                    ])
 
         # LOG.info("CLASSPATH: " + self.classpath)
-        
+
 
         self.start_server()
         # This probably is only half-reliable, but worth a shot.
@@ -99,7 +100,7 @@ class SockWrap:
         while True:
             time.sleep(STARTUP_BUSY_WAIT_INTERVAL_SEC)
             try:
-                ret = self.send_command_and_parse_result('PING\t""', 0.1)
+                ret = self.send_command_and_parse_result('PING\t""', 2)
                 if ret is None:
                     continue
                 assert ret == "PONG", "Bad return data on startup ping: " + ret

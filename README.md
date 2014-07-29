@@ -1,6 +1,6 @@
 **EXPERIMENTAL DO NOT USE WITHOUT LOTS OF TESTING**
 
-java files copied from github.com/brendano/myutil
+Java files copied from [github.com/brendano/myutil](github.com/brendano/myutil).
 
 License GPL version 2 or later
 
@@ -8,6 +8,18 @@ see also
 * https://bitbucket.org/torotoki/corenlp-python
 * https://github.com/dasmith/stanford-corenlp-python
 
+This wrapper assumes the use of CoreNLP 3.4 and the new
+[shift-reduce](http://nlp.stanford.edu/software/srparser.shtml). The `sample.ini` config file is
+setup to use these options.
+
+##Install
+
+You can install the program using something like:
+
+```
+git clone https://github.com/brendano/stanford-corepywrapper
+pip install stanford-corepywrapper
+```
 
 ##Usage
 
@@ -19,8 +31,8 @@ See javasrc/corenlp/Parse.java for the allowable pipeline types.
 TODO List:
 * Downgrade most of the messages to DEBUG not INFO once we think this code works ok
 
-Note some of these messages are stderr from the CoreNLP subprocess. everything
-starting with INFO: is from the Python logging system and is from the parent
+Note some of these messages are stderr from the CoreNLP subprocess. Everything
+starting with `INFO:` is from the Python logging system and is from the parent
 process.
 
 ```
@@ -64,7 +76,7 @@ INFO:StanfordSocketWrap:Subprocess is ready.
     ]
 }
 
->>> p=sockwrap.SockWrap("justparse")
+>>> p=sockwrap.SockWrap("justparse", configfile='sample.ini')
 >>> p.parse_doc("hello world. how are you?")
 {u'sentences':
     [
