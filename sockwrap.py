@@ -51,35 +51,33 @@ class SubprocessCrashed(Exception):
 
 class SockWrap:
 
-    def __init__(self, mode=None, server_port=12340, configfile=None, corenlp_libdir=''):
+    def __init__(self, mode=None, server_port=12340, configfile=None,
+            corenlp_libdir=os.path.join(os.environ['HOME'], "stanford-corenlp"),
+            corenlp_jars=("stanford-corenlp-3.4.jar","stanford-corenlp-3.4-models.jar","stanford-srparser-2014-07-01-models.jar")
+            ):
         self.mode = mode
         self.proc = None
         self.server_port = server_port
         self.configfile = configfile
         self.corenlp_libdir = corenlp_libdir
 
-        if not corenlp_libdir:
-            corenlp_libdir = os.environ['HOME'] + "/stanford-corenlp"
+        corenlp_jar_fullfilenames = [os.path.join(corenlp_libdir, f) for f in corenlp_jars]
+        assert any(os.path.exists(f) for f in corenlp_jar_fullfilenames), "CoreNLP jar file does not seem to exist; are the paths correct?  Searched files: %s" % repr(corenlp_jar_fullfilenames)
+
         local_libdir = os.path.join(os.path.abspath(os.path.dirname(__file__)),
                                     'lib')
 
-        self.classpath = ':'.join([os.path.join(local_libdir,
-                                                "piperunner.jar"),
-                                   # for eclipse development only
-                                   # "/Users/brendano/myutil/bin",
-                                   os.path.join(local_libdir,
-                                                "guava-13.0.1.jar"),
-                                   os.path.join(local_libdir,
-                                                "jackson-all-1.9.11.jar"),
-                                   os.path.join(corenlp_libdir, "stanford-corenlp-3.4.jar"),
-                                   os.path.join(corenlp_libdir,
-                                                "stanford-corenlp-3.4-models.jar"),
-                                   os.path.join(corenlp_libdir,
-                                                "stanford-srparser-2014-07-01-models.jar")
-                                   ])
+        jars = [os.path.join(local_libdir, "piperunner.jar"),
+                # for eclipse development only
+                # "/Users/brendano/myutil/bin",
+                os.path.join(local_libdir, "guava-13.0.1.jar"),
+                os.path.join(local_libdir, "jackson-all-1.9.11.jar"),
+        ]
+
+        jars += corenlp_jar_fullfilenames
+        self.classpath = ':'.join(jars)
 
         # LOG.info("CLASSPATH: " + self.classpath)
-
 
         self.start_server()
         # This probably is only half-reliable, but worth a shot.
@@ -183,6 +181,10 @@ def test_simple():
     p.kill_proc_if_running()
     assert_no_java()
 
+def test_paths():
+    import pytest
+    with pytest.raises(AssertionError):
+        SockWrap("ssplit", corenlp_libdir="blabla_bad_dir")
 
 def assert_no_java(msg=""):
     ps_output = os.popen("ps wux").readlines()
