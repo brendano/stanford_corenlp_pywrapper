@@ -7,7 +7,14 @@ setup(
 
     description='A Python wrapper for CoreNLP.',
 
+    packages=['stanford_corepywrapper'],
+    package_dir={'stanford_corepywrapper': 'stanford_corepywrapper'},
     package_data={
-        'wrapper': ['javasrc/*', 'lib/*'],
+        'stanford_corepywrapper': ['javasrc/corenlp/*', 'lib/*',
+                                   'javasrc/util/Arr.java',
+                                   'javasrc/util/BasicFileIO.java',
+                                   'javasrc/util/JsonUtil.java',
+                                   'javasrc/util/U.java',
+                                   'javasrc/util/misc/*'],
     }
 )
