@@ -24,8 +24,8 @@ downloaded into `corenlp_libdir`.)
 You can install the program using something like:
 
 ```
-git clone https://github.com/brendano/stanford-corepywrapper
-pip install stanford-corepywrapper
+git clone https://github.com/brendano/stanford_corenlp_pywrapper
+pip install stanford_corenlp_pywrapper
 ```
 ## Usage
 
