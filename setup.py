@@ -1,20 +1,15 @@
-from setuptools import setup, find_packages  # Always prefer setuptools over distutils
+from setuptools import setup
 
 setup(
-    name='stanford_corepywrapper',
+    name='stanford_corenlp_pywrapper',
 
-    version='0.0.1a',
+    version='0.1.0',
 
     description='A Python wrapper for CoreNLP.',
 
-    packages=['stanford_corepywrapper'],
-    package_dir={'stanford_corepywrapper': 'stanford_corepywrapper'},
+    packages=['stanford_corenlp_pywrapper'],
+    package_dir={'stanford_corenlp_pywrapper': 'stanford_corenlp_pywrapper'},
     package_data={
-        'stanford_corepywrapper': ['javasrc/corenlp/*', 'lib/*',
-                                   'javasrc/util/Arr.java',
-                                   'javasrc/util/BasicFileIO.java',
-                                   'javasrc/util/JsonUtil.java',
-                                   'javasrc/util/U.java',
-                                   'javasrc/util/misc/*'],
+        'stanford_corenlp_pywrapper': ['lib/*'],
     }
 )
