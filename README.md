@@ -31,11 +31,11 @@ pip install stanford-corepywrapper
 
 The basic arguments to open a server are (1) the pipeline type (see
 `javasrc/corenlp/Parse.java` for the list of possible ones), and (2) the
-directory that contains the CoreNLP jar files.  Here we assume it's been
-unzipped in the current directory.
+directory that contains the CoreNLP jar files.  Here we assume the program has
+been installed using `pip install`. 
 
 ```
->>> import sockwrap
+>>> from stanford_corenlp_pywrapper import sockwrap
 >>> p=sockwrap.SockWrap("pos", corenlp_libdir="stanford-corenlp-full-2014-06-16")
 
 INFO:StanfordSocketWrap:Starting pipe subprocess, and waiting for signal it's ready, with command:  exec java -Xmx4g -cp /Users/brendano/sw/nlp/stanford-pywrapper/lib/piperunner.jar:/Users/brendano/sw/nlp/stanford-pywrapper/lib/guava-13.0.1.jar:/Users/brendano/sw/nlp/stanford-pywrapper/lib/jackson-all-1.9.11.jar:stanford-corenlp-full-2014-06-16/stanford-corenlp-3.4.jar:stanford-corenlp-full-2014-06-16/stanford-corenlp-3.4-models.jar:stanford-corenlp-full-2014-06-16/stanford-srparser-2014-07-01-models.jar     corenlp.PipeCommandRunner --server 12340  --mode pos
