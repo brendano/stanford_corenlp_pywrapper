@@ -27,12 +27,15 @@ You can install the program using something like:
 git clone https://github.com/brendano/stanford_corenlp_pywrapper
 pip install stanford_corenlp_pywrapper
 ```
+
+Java version 7 or higher is required to be installed.
+
 ## Usage
 
 The basic arguments to open a server are (1) the pipeline type (see
 `javasrc/corenlp/Parse.java` for the list of possible ones), and (2) the
 directory that contains the CoreNLP jar files.  Here we assume the program has
-been installed using `pip install`. 
+been installed using `pip install`.
 
 ```
 >>> from stanford_corenlp_pywrapper import sockwrap
