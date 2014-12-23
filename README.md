@@ -25,7 +25,8 @@ You can install the program using something like:
 
 ```
 git clone https://github.com/brendano/stanford_corenlp_pywrapper
-pip install stanford_corenlp_pywrapper
+cd stanford_corenlp_pywrapper
+pip install .
 ```
 
 Java version 7 or higher is required to be installed.
