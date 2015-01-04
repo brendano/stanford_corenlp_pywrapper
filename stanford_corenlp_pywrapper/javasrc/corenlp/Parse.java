@@ -25,6 +25,7 @@ import edu.stanford.nlp.ling.CoreAnnotations.PartOfSpeechAnnotation;
 import edu.stanford.nlp.ling.CoreAnnotations.SentencesAnnotation;
 import edu.stanford.nlp.ling.CoreAnnotations.TokensAnnotation;
 import edu.stanford.nlp.ling.CoreLabel;
+import edu.stanford.nlp.ling.IndexedWord;
 import edu.stanford.nlp.pipeline.Annotation;
 import edu.stanford.nlp.pipeline.StanfordCoreNLP;
 import edu.stanford.nlp.trees.TreeCoreAnnotations;
@@ -173,11 +174,21 @@ public class Parse {
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	static List jsonFriendlyDeps(SemanticGraph dependencies) {
 		List deps = new ArrayList();
+		// Since the dependencies are for each sentence, we obtain the root
+		// and add it to the list of dependency triples.
+		// The method is explained in the following link:
+		// http://stackoverflow.com/questions/16300056/stanford-core-nlp-missing-roots
+		IndexedWord root = dependencies.getFirstRoot();
+                List deptriple = Lists.newArrayList(
+                                "ROOT",
+                                -1,
+                                root.index() - 1);
+                                
 		for (SemanticGraphEdge e : dependencies.edgeIterable()) {
-			List deptriple = Lists.newArrayList(
-					e.getRelation().toString(), 
-					e.getGovernor().index() - 1,
-					e.getDependent().index() - 1);
+			deptriple = Lists.newArrayList(
+				   e.getRelation().toString(), 
+				   e.getGovernor().index() - 1,
+				   e.getDependent().index() - 1);
 			deps.add(deptriple);
 		}
 		return deps;
