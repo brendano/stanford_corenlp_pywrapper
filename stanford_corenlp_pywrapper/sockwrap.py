@@ -168,8 +168,19 @@ class SockWrap:
         # java "long" is 8 bytes, which python struct calls "long long".
         # java default byte ordering is big-endian.
         size_info = struct.unpack('>Q', size_info_str)[0]
-        data = sock.recv(size_info)
-        return data
+        # print "size expected", size_info
+
+        chunks = []
+        curlen = lambda: sum(len(x) for x in chunks)
+        while True:
+            data = sock.recv(size_info - curlen())
+            chunks.append(data)
+            if curlen() >= size_info: break
+            if len(data)>10 and all(len(x)==0 for x in data[-5:]):
+                LOG.warning("Incomplete value from socket")
+                return None
+            time.sleep(0.001)
+        return ''.join(chunks)
 
 
 def test_simple():
