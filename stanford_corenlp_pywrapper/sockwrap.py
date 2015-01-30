@@ -128,9 +128,9 @@ class SockWrap:
             LOG.warning("Killing subprocess %s" % self.proc.pid)
             os.kill(self.proc.pid, 9)
 
-    def parse_doc(self, text, timeout=PARSEDOC_TIMEOUT_SEC):
+    def parse_doc(self, text, timeout=PARSEDOC_TIMEOUT_SEC, raw=False):
         cmd = "PARSEDOC\t%s" % json.dumps(text)
-        return self.send_command_and_parse_result(cmd, timeout)
+        return self.send_command_and_parse_result(cmd, timeout, raw=raw)
 
     def get_socket(self):
         # could be smarter here about reusing the same socket?
@@ -138,15 +138,18 @@ class SockWrap:
         sock.connect(('localhost', self.server_port))
         return sock
 
-    def send_command_and_parse_result(self, cmd, timeout):
+    def send_command_and_parse_result(self, cmd, timeout, raw=False):
         try:
             self.ensure_proc_is_running()
             data = self.send_command_and_get_string_result(cmd, timeout)
             decoded = None
+            if raw:
+                return data
             try:
                 decoded = json.loads(data)
             except ValueError:
                 LOG.warning("Bad JSON returned from subprocess; returning null.")
+                LOG.warning("Bad JSON length %d, starts with: %s" % (len(data), repr(data[:1000])))
                 return None
             return decoded
         except socket.timeout, e:
