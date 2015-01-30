@@ -1,6 +1,5 @@
 """
 the socket server approach.
-this is eventually the right way to do it, but not tested well yet
 """
 
 from __future__ import division
@@ -52,17 +51,18 @@ class SubprocessCrashed(Exception):
 class SockWrap:
 
     def __init__(self, mode=None, server_port=12340, configfile=None,
-            corenlp_libdir=os.path.join(os.environ['HOME'], "stanford-corenlp"),
-            corenlp_jars=("stanford-corenlp-3.4.jar","stanford-corenlp-3.4-models.jar","stanford-srparser-2014-07-01-models.jar")
+            corenlp_jars=(
+                "/home/sw/stanford-corenlp-full-2015-01-30/stanford-corenlp-3.5.1.jar",
+                "/home/sw/stanford-corenlp-full-2015-01-30/stanford-corenlp-3.5.1-models.jar",
+                "/home/sw/stanford-srparser-2014-10-23-models.jar",  # optional: for shift-reduce parser
+                )
             ):
         self.mode = mode
         self.proc = None
         self.server_port = server_port
         self.configfile = configfile
-        self.corenlp_libdir = corenlp_libdir
 
-        corenlp_jar_fullfilenames = [os.path.join(corenlp_libdir, f) for f in corenlp_jars]
-        assert any(os.path.exists(f) for f in corenlp_jar_fullfilenames), "CoreNLP jar file does not seem to exist; are the paths correct?  Searched files: %s" % repr(corenlp_jar_fullfilenames)
+        assert any(os.path.exists(f) for f in corenlp_jars), "CoreNLP jar file does not seem to exist; are the paths correct?  Searched files: %s" % repr(corenlp_jars)
 
         local_libdir = os.path.join(os.path.abspath(os.path.dirname(__file__)),
                                     'lib')
@@ -74,7 +74,7 @@ class SockWrap:
                 os.path.join(local_libdir, "jackson-all-1.9.11.jar"),
         ]
 
-        jars += corenlp_jar_fullfilenames
+        jars += corenlp_jars
         self.classpath = ':'.join(jars)
 
         # LOG.info("CLASSPATH: " + self.classpath)
