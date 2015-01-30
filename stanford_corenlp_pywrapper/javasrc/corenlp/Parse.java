@@ -178,11 +178,17 @@ public class Parse {
 		// and add it to the list of dependency triples.
 		// The method is explained in the following link:
 		// http://stackoverflow.com/questions/16300056/stanford-core-nlp-missing-roots
-		IndexedWord root = dependencies.getFirstRoot();
-                List deptriple = Lists.newArrayList(
-                                "ROOT",
-                                -1,
-                                root.index() - 1);
+                List deptriple;
+                try {
+                    IndexedWord root = dependencies.getFirstRoot();
+                    deptriple = Lists.newArrayList(
+                                    "ROOT",
+                                    -1,
+                                    root.index() - 1);
+                    deps.add(deptriple);
+                } catch (Exception e) {
+                    // This can happen: https://github.com/stanfordnlp/CoreNLP/issues/55
+                }
                                 
 		for (SemanticGraphEdge e : dependencies.edgeIterable()) {
 			deptriple = Lists.newArrayList(
