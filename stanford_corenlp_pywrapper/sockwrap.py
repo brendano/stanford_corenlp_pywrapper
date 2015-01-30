@@ -187,7 +187,7 @@ def test_simple():
 def test_paths():
     import pytest
     with pytest.raises(AssertionError):
-        SockWrap("ssplit", corenlp_libdir="blabla_bad_dir")
+        SockWrap("ssplit", corenlp_jars=["/asdfadsf/asdfasdf"])
 
 def assert_no_java(msg=""):
     ps_output = os.popen("ps wux").readlines()
