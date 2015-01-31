@@ -182,7 +182,7 @@ public class Parse {
                 try {
                     IndexedWord root = dependencies.getFirstRoot();
                     deptriple = Lists.newArrayList(
-                                    "ROOT",
+                                    "root",
                                     -1,
                                     root.index() - 1);
                     deps.add(deptriple);
