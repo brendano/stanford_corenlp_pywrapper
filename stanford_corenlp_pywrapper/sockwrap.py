@@ -15,7 +15,7 @@ LOG.setLevel("INFO")
 # LOG.setLevel("DEBUG")
 
 COMMAND = """
-exec {JAVA} -Xmx{XMX_AMOUNT} -cp {classpath}
+exec {JAVA} -Xmx{XMX_AMOUNT} -cp '{classpath}'
     corenlp.PipeCommandRunner --server {server_port} {more_config}"""
 
 JAVA = "java"
@@ -28,7 +28,7 @@ STARTUP_BUSY_WAIT_INTERVAL_SEC = 2.0
 TEMP_DIR = None
 
 
-def command(mode=None, configfile=None, **kwargs):
+def command(mode=None, configfile=None, configdict=None, output_types=None, **kwargs):
     d = {}
     d.update(globals())
     d.update(**kwargs)
@@ -38,8 +38,13 @@ def command(mode=None, configfile=None, **kwargs):
         more_config += " --mode {}".format(mode)
     if configfile:
         more_config += " --configfile {}".format(configfile)
+    if configdict:
+        j = json.dumps(configdict)
+        assert "'" not in j, "can't handle single quote in config values"
+        more_config += " --configdict '{}'".format(j)
+    if output_types:
+        more_config += " --output-types '{}'".format(' '.join(output_types))
     d['more_config'] = more_config
-
 
     return COMMAND.format(**d).replace("\n", " ")
 
@@ -50,7 +55,8 @@ class SubprocessCrashed(Exception):
 
 class SockWrap:
 
-    def __init__(self, mode=None, server_port=12340, configfile=None,
+    def __init__(self, mode=None, server_port=12340,
+            configfile=None, configdict=None, output_types=None,
             corenlp_jars=(
                 "/home/sw/stanford-corenlp-full-2015-01-30/stanford-corenlp-3.5.1.jar",
                 "/home/sw/stanford-corenlp-full-2015-01-30/stanford-corenlp-3.5.1-models.jar",
@@ -61,6 +67,8 @@ class SockWrap:
         self.proc = None
         self.server_port = server_port
         self.configfile = configfile
+        self.configdict = configdict
+        self.output_types = output_types
 
         assert any(os.path.exists(f) for f in corenlp_jars), "CoreNLP jar file does not seem to exist; are the paths correct?  Searched files: %s" % repr(corenlp_jars)
 
@@ -90,9 +98,7 @@ class SockWrap:
 
     def start_server(self):
         self.kill_proc_if_running()
-        cmd = command(mode=self.mode, server_port=self.server_port,
-                      configfile=self.configfile,
-                      classpath=self.classpath)
+        cmd = command(**self.__dict__)
         LOG.info("Starting pipe subprocess, and waiting for signal it's ready, with command: %s" % cmd)
         self.proc = subprocess.Popen(cmd, shell=True)
         while True:

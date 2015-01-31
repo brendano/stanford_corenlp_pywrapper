@@ -9,6 +9,8 @@ import org.codehaus.jackson.JsonGenerationException;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.JsonMappingException;
 
+import com.google.common.collect.Lists;
+
 import util.Arr;
 import util.BasicFileIO;
 import util.JsonUtil;
@@ -84,14 +86,29 @@ public class PipeCommandRunner {
 				args = Arr.subArray(args, 2, args.length);
 			}
 			else if (args[0].equals("--mode")) {
-				System.err.println("[Server] Using mode type: " + args[1]);
+				System.err.println("[Server] Using prebaked mode type: " + args[1]);
 				runner.parser.mode = Parse.modeFromString(args[1]);
 				if (runner.parser.mode==null) throw new RuntimeException("bad mode " + args[1]);
 				runner.parser.setAnnotatorsFromMode();
 				args = Arr.subArray(args, 2, args.length);
 			}
+			else if (args[0].equals("--output-types")) {
+				runner.parser.customOutputTypes = args[1].trim().replaceAll(",+ *$","").split(",+ *| +");
+				args = Arr.subArray(args, 2, args.length);
+			}
+			else if (args[0].equals("--configdict")) {
+				JsonNode propsAsJson = JsonUtil.parse(args[1]);
+				for (String key : Lists.newArrayList(propsAsJson.getFieldNames())) {
+					String value = propsAsJson.get(key).asText();
+					runner.parser.props.setProperty(key, value);
+				}
+				args = Arr.subArray(args, 2, args.length);
+			}
 		}
 
+		System.err.println("[Server] Using output types: " + Lists.newArrayList(runner.parser.outputTypes()));
+		runner.parser.initializeCorenlpPipeline();
+		
 		if (doServer) {
 			runner.socketServerLoop();
 		} else {

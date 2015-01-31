@@ -37,14 +37,13 @@ import edu.stanford.nlp.semgraph.SemanticGraphCoreAnnotations.CollapsedCCProcess
 import edu.stanford.nlp.semgraph.SemanticGraphEdge;
 
 /** 
- * Commandline runner for CoreNLP with JSON output.
+ * A wrapper around a CoreNLP object that set up annotators, and can turn annotations into JSON.
  * 
+ * Also includes a commandline mode.
  * INPUT: one line per document.
  *  	docid \t TextAsJsonStringOrObjectWithTextField 
- *  
  *  OUTPUT: as JSON, one doc per line ("jdoc").
  *    docid \t {sentences: [ {sentobj}, {sentobj}, ... ]}
- *    
  *  where each sentobj is
  *    {tokens: [...], char_offsets: [...], ....}
  *    
@@ -56,21 +55,30 @@ public class Parse {
 
 	StanfordCoreNLP pipeline;
 	ProcessingMode mode;
+	Properties props = new Properties();
+	String[] customOutputTypes;
+	
+	String[] outputTypes() {
+		if (customOutputTypes != null)
+			return customOutputTypes;
+		return defaultOutputsForMode(mode);
+	}
 
 	int numTokens = 0;
 	int numDocs = 0;
+	int numChars = 0;
 	long startMilli = System.currentTimeMillis();
 	
 	public Parse() {
 	}
 
+	/** the pre-baked processing modes, that define annotators and outputs. */
 	static enum ProcessingMode {
 		SSPLIT,
 		POS,
 		NER,
-		JUSTPARSE,
-		MEDPARSE,
-		FULLPARSE;
+		PARSE,
+		NERPARSE;
 	}
 
 	static enum InputFormat {
@@ -79,7 +87,7 @@ public class Parse {
 	};
 
 	static void usage() {
-		U.p("corenlp.Parse [options] OUTPUTMODE\n" +
+		U.p("corenlp.Parse [options] PROCESSINGMODE\n" +
 				"Processes document texts on and outputs NLP-annotated versions.\n" +
 				"Both input and output formats are one document per line.\n" +
 				"\n" +
@@ -87,9 +95,8 @@ public class Parse {
 				"  ssplit:     tokenization and sentence splitting (included in all subsequent ones)\n" +
 				"  pos:        POS (and lemmas)\n" +
 				"  ner:        POS and NER (and lemmas)\n" +
-				"  justparse:  minimal parsing, just POS and trees.  (No NER, no lemmas, no deps)\n" +
-				"  medparse:   parsing with POS, lemmas, and dependencies (no NER)\n" +
-				"  fullparse:  parsing with NER, POS, lemmas, depenencies.\n" +
+				"  parse:  fairly basic parsing with POS, lemmas, trees, dependencies\n" +
+				"  nerparse:  parsing with NER, POS, lemmas, depenencies.\n" +
 				"              This is the maximum processing short of coreference.\n" +
 				"\n" +
 				"Input format can be either\n" +
@@ -111,9 +118,8 @@ public class Parse {
 			_mode.equals("ssplit") ? ProcessingMode.SSPLIT :
 			_mode.equals("pos") ? ProcessingMode.POS :
 			_mode.equals("ner") ? ProcessingMode.NER :
-			_mode.equals("justparse") ? ProcessingMode.JUSTPARSE :
-			_mode.equals("medparse") ? ProcessingMode.MEDPARSE :
-			_mode.equals("fullparse") ? ProcessingMode.FULLPARSE :
+			_mode.equals("parse") ? ProcessingMode.PARSE :
+			_mode.equals("nerparse") ? ProcessingMode.NERPARSE :
 			null;
 	}
 
@@ -127,10 +133,10 @@ public class Parse {
 		else if (mode==ProcessingMode.NER) {
 			props.put("annotators", "tokenize, ssplit, pos, lemma, ner");
 		} 
-		else if (mode==ProcessingMode.JUSTPARSE || mode==ProcessingMode.MEDPARSE) {
+		else if (mode==ProcessingMode.PARSE) {
 			props.put("annotators", "tokenize, ssplit, pos, parse");			
 		}
-		else if (mode==ProcessingMode.FULLPARSE) {
+		else if (mode==ProcessingMode.NERPARSE) {
 			props.put("annotators", "tokenize, ssplit, pos, lemma, ner, parse");
 		} 
 		else {
@@ -148,6 +154,7 @@ public class Parse {
 		sent_info.put("tokens", (Object) tokenTexts);
 		sent_info.put("char_offsets", (Object) tokenSpans);
 	}
+	@SuppressWarnings({ "rawtypes", "unchecked" })
 	static void addTokenAnno(Map<String,Object> sent_info, CoreMap sentence,
 			String keyname, Class annoClass) {
 		List<String> tokenAnnos = Lists.newArrayList();
@@ -178,39 +185,40 @@ public class Parse {
 		// and add it to the list of dependency triples.
 		// The method is explained in the following link:
 		// http://stackoverflow.com/questions/16300056/stanford-core-nlp-missing-roots
-                List deptriple;
-                try {
-                    IndexedWord root = dependencies.getFirstRoot();
-                    deptriple = Lists.newArrayList(
-                                    "root",
-                                    -1,
-                                    root.index() - 1);
-                    deps.add(deptriple);
-                } catch (Exception e) {
-                    // This can happen: https://github.com/stanfordnlp/CoreNLP/issues/55
-                }
-                                
+		List deptriple;
+		try {
+			IndexedWord root = dependencies.getFirstRoot();
+			deptriple = Lists.newArrayList(
+					"root",
+					-1,
+					root.index() - 1);
+			deps.add(deptriple);
+		} catch (Exception e) {
+			// This can happen: https://github.com/stanfordnlp/CoreNLP/issues/55
+		}
+
 		for (SemanticGraphEdge e : dependencies.edgeIterable()) {
 			deptriple = Lists.newArrayList(
-				   e.getRelation().toString(), 
-				   e.getGovernor().index() - 1,
-				   e.getDependent().index() - 1);
+					e.getRelation().toString(), 
+					e.getGovernor().index() - 1,
+					e.getDependent().index() - 1);
 			deps.add(deptriple);
 		}
 		return deps;
 	}
 	
 	public void setConfigurationFromFile(String iniPropertiesFilename) throws FileNotFoundException, IOException {
-		Properties props = new Properties();
 		props.load(new FileInputStream(iniPropertiesFilename));
-		pipeline = new StanfordCoreNLP(props);
 	}
 	
 	public void setAnnotatorsFromMode() {
-		Properties props = new Properties();
 		setAnnotators(props, mode);
 		//	    props.setProperty("tokenize.whitespace", "true");
 		//	    props.setProperty("ssplit.eolonly", "true");
+	}
+	
+	/** assume the properties object has been set */
+	void initializeCorenlpPipeline() {
 		pipeline = new StanfordCoreNLP(props);
 	}
 
@@ -218,7 +226,7 @@ public class Parse {
 		setAnnotatorsFromMode();
 
 		for (String line : BasicFileIO.STDIN_LINES) {
-			numDocs++; System.err.print(".");
+			numDocs++; numChars += line.length(); System.err.print(".");
 			String[] parts = line.split("\t");
 			String docid, doctext;
 			JsonNode payload = null;
@@ -247,7 +255,56 @@ public class Parse {
 		
 		double elapsedSec = 1.0*(System.currentTimeMillis() - startMilli) / 1000;
 		System.err.print("\n");
-		System.err.printf("%d docs, %d tokens, %.1f tok/sec\n", numDocs, numTokens, numTokens*1.0/elapsedSec);
+		System.err.printf("%d docs, %d tokens, %.1f tok/sec, %.1f byte/sec\n", numDocs, numTokens, numTokens*1.0/elapsedSec, numChars*1.0/elapsedSec);
+	}
+	
+	String[] defaultOutputsForMode(ProcessingMode mode) {
+		if (mode==null) assert false;
+		switch(mode) {
+		case SSPLIT:
+			return new String[] {};
+		case POS:
+			return new String[]{ "pos", "lemmas" };
+		case PARSE:
+			return new String[]{ "pos", "lemmas", "parse", "deps_basic", "deps_cc" };
+		case NER:
+			return new String[]{ "pos", "lemmas", "ner", "normner" };
+		case NERPARSE:
+			return new String[]{ "pos", "lemmas", "parse", "deps_basic", "deps_cc", "ner", "normner" };
+		default:
+			return new String[] {};
+		}
+	}
+	
+	/** outputType is our system. doesn't quite 1-1 match the stanford annotators. */
+	void addAnnoToSentenceObject(Map<String,Object> sent_info, CoreMap sentence, String outputType) {
+		switch(outputType) {
+		case "ssplit":
+			break;
+		case "pos":
+			addTokenAnno(sent_info,sentence, "pos", PartOfSpeechAnnotation.class);
+			break;
+		case "lemmas":
+			addTokenAnno(sent_info,sentence, "lemmas", LemmaAnnotation.class);
+			break;
+		case "parse":
+			addParseTree(sent_info,sentence);
+			break;
+		case "deps_cc":
+			addDepsCC(sent_info,sentence);
+			break;
+		case "deps_basic":
+			addDepsBasic(sent_info,sentence);
+			break;
+		case "ner":
+			addTokenAnno(sent_info, sentence, "ner", NamedEntityTagAnnotation.class);
+			break;
+		case "normner":
+			addTokenAnno(sent_info, sentence, "normner", NormalizedNamedEntityTagAnnotation.class);
+			break;
+		default:
+			throw new RuntimeException("bad output type " + outputType);
+		}
 	}
 
 	/** runs the corenlp pipeline with all options, and returns all results as a JSON object. */
@@ -263,47 +320,17 @@ public class Parse {
 			Map<String,Object> sent_info = Maps.newHashMap();
 			addTokenBasics(sent_info, sentence);
 			numTokens += ((List) sent_info.get("tokens")).size();
-			switch(mode) {
-			case SSPLIT:
-				break;
-			case POS:
-				addTokenAnno(sent_info,sentence, "pos", PartOfSpeechAnnotation.class);
-				addTokenAnno(sent_info,sentence, "lemmas", LemmaAnnotation.class);
-				break;
-			case JUSTPARSE:
-				addTokenAnno(sent_info, sentence, "pos", PartOfSpeechAnnotation.class);
-				addParseTree(sent_info,sentence);
-				break;
-			case MEDPARSE:
-				addTokenAnno(sent_info, sentence, "pos", PartOfSpeechAnnotation.class);
-				addTokenAnno(sent_info,sentence, "lemmas", LemmaAnnotation.class);
-				addParseTree(sent_info,sentence);
-				addDepsCC(sent_info,sentence);
-				addDepsBasic(sent_info,sentence);
-				break;
-			case NER:
-				addTokenAnno(sent_info, sentence, "pos", PartOfSpeechAnnotation.class);
-				addTokenAnno(sent_info,sentence, "lemmas", LemmaAnnotation.class);
-				addTokenAnno(sent_info, sentence, "ner", NamedEntityTagAnnotation.class);
-				addTokenAnno(sent_info, sentence, "normner", NormalizedNamedEntityTagAnnotation.class);
-				break;
-			case FULLPARSE:
-				addTokenAnno(sent_info, sentence, "pos", PartOfSpeechAnnotation.class);
-				addTokenAnno(sent_info,sentence, "lemmas", LemmaAnnotation.class);
-				addTokenAnno(sent_info, sentence, "ner", NamedEntityTagAnnotation.class);
-				addTokenAnno(sent_info, sentence, "normner", NormalizedNamedEntityTagAnnotation.class);
-				addParseTree(sent_info,sentence);
-				addDepsCC(sent_info,sentence);
-				addDepsBasic(sent_info,sentence);
-				break;
+			for (String outputType : outputTypes()) {
+				addAnnoToSentenceObject(sent_info, sentence, outputType);
 			}
 			outSentences.add(sent_info);
 		}
 
 		Map outDoc = new ImmutableMap.Builder()
 		//	        	.put("text", doctext)
-		.put("sentences", outSentences)
-		.build();
+			.put("sentences", outSentences)
+			// coref entities would go here too
+			.build();
 		return JsonUtil.toJson(outDoc);
 	}
 
