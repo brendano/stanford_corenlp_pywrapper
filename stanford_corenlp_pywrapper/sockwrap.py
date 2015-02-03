@@ -180,7 +180,7 @@ class SockWrap:
             # the process now just in case?
 
     def send_command_and_get_string_result(self, cmd, timeout):
-        sock = self.get_socket()
+        sock = self.get_socket(num_retries=100)
         sock.settimeout(timeout)
         sock.sendall(cmd + "\n")
         size_info_str = sock.recv(8)
