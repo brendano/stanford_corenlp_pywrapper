@@ -182,10 +182,10 @@ class SockWrap:
             data = sock.recv(size_info - curlen())
             chunks.append(data)
             if curlen() >= size_info: break
-            if len(data)>10 and all(len(x)==0 for x in data[-5:]):
+            if len(chunks) > 1000:
                 LOG.warning("Incomplete value from socket")
                 return None
-            time.sleep(0.001)
+            time.sleep(0.01)
         return ''.join(chunks)
 
 
