@@ -22,7 +22,7 @@ JAVA = "java"
 XMX_AMOUNT = "4g"
 
 PARSEDOC_TIMEOUT_SEC = 60 * 5
-STARTUP_BUSY_WAIT_INTERVAL_SEC = 2.0
+STARTUP_BUSY_WAIT_INTERVAL_SEC = 5.0
 
 #arg for mkstemp(dir=), so if None it defaults to somewhere
 TEMP_DIR = None
@@ -101,8 +101,10 @@ class SockWrap:
         cmd = command(**self.__dict__)
         LOG.info("Starting pipe subprocess, and waiting for signal it's ready, with command: %s" % cmd)
         self.proc = subprocess.Popen(cmd, shell=True)
+        time.sleep(STARTUP_BUSY_WAIT_INTERVAL_SEC)
+        sock = self.get_socket(num_retries=100, retry_interval=STARTUP_BUSY_WAIT_INTERVAL_SEC)
+        sock.close()
         while True:
-            time.sleep(STARTUP_BUSY_WAIT_INTERVAL_SEC)
             try:
                 ret = self.send_command_and_parse_result('PING\t""', 2)
                 if ret is None:
@@ -112,6 +114,8 @@ class SockWrap:
                 break
             except socket.error, e:
                 LOG.info("Waiting for startup: ping got exception: %s %s" % (type(e), e))
+                LOG.info("pausing before retry")
+                time.sleep(STARTUP_BUSY_WAIT_INTERVAL_SEC)
 
         LOG.info("Subprocess is ready.")
 
@@ -138,16 +142,25 @@ class SockWrap:
         cmd = "PARSEDOC\t%s" % json.dumps(text)
         return self.send_command_and_parse_result(cmd, timeout, raw=raw)
 
-    def get_socket(self):
+    def get_socket(self, num_retries=1, retry_interval=1):
         # could be smarter here about reusing the same socket?
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect(('localhost', self.server_port))
-        return sock
+        for trial in range(num_retries):
+            try:
+                sock.connect(('localhost', self.server_port))
+                return sock
+            except (socket.error, socket.timeout) as e:
+                LOG.info("socket error when making connection (%s)" % e)
+                if trial < num_retries-1:
+                    LOG.info("pausing before retry")
+                    time.sleep(retry_interval)
+        assert False, "couldnt connect socket"
 
     def send_command_and_parse_result(self, cmd, timeout, raw=False):
         try:
             self.ensure_proc_is_running()
             data = self.send_command_and_get_string_result(cmd, timeout)
+            if data is None: return None
             decoded = None
             if raw:
                 return data
