@@ -1,3 +1,4 @@
+// vim:ts=4:noet
 package corenlp;
 
 import java.io.*;
@@ -171,6 +172,7 @@ public class PipeCommandRunner {
 
 		while (true) {
 //			System.err.println("[Server] Waiting for Connection on Port: "+port);
+			commandstr = null;
 			try {
 				clientSocket = getSocketConnection();
 				br = new BufferedReader(new InputStreamReader(new DataInputStream(clientSocket.getInputStream())));
@@ -181,7 +183,16 @@ public class PipeCommandRunner {
 				continue;
 			}
 
+			if (commandstr == null) {
+				continue;
+			}
+
 			String[] parts = commandstr.split("\t");
+
+			if (parts.length != 2) {
+				continue;
+			}
+
 			String command = parts[0];
 			String payload = parts[1];
 			JsonNode result = null;
