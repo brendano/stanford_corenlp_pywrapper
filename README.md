@@ -30,8 +30,16 @@ pip install .
 ```
 
 Java version 7 or higher is required to be installed.
+(CoreNLP 3.5 might requires Jave 8 actually?)
 
-## Usage
+## Commandline usage
+
+See `proc_text_files.py` for an example of processing text files,
+or `proc_doc_lines.py` for an alternative input/output format.
+For more sophisticated usage, you'll want to write your own Python code
+as described below.
+
+## Usage from Python
 
 The basic arguments to open a server are (1) the pipeline type (see
 `javasrc/corenlp/Parse.java` for the list of possible ones), and (2) the
