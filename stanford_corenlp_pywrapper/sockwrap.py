@@ -144,9 +144,10 @@ class SockWrap:
 
     def get_socket(self, num_retries=1, retry_interval=1):
         # could be smarter here about reusing the same socket?
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         for trial in range(num_retries):
             try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                # sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) # not sure if this is needed?
                 sock.connect(('localhost', self.server_port))
                 return sock
             except (socket.error, socket.timeout) as e:
