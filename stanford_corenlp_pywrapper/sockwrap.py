@@ -3,7 +3,7 @@ the socket server approach.
 """
 
 from __future__ import division
-import subprocess, tempfile, time, os, logging, re, struct, socket, atexit
+import subprocess, tempfile, time, os, logging, re, struct, socket, atexit, glob
 try:
     import ujson as json
 except ImportError:
@@ -57,12 +57,35 @@ class SockWrap:
 
     def __init__(self, mode=None, server_port=12340,
             configfile=None, configdict=None, output_types=None,
+            corenlp_dir="/home/sw/corenlp/stanford-corenlp-full-2015-04-20",
             corenlp_jars=(
-                "/home/sw/stanford-corenlp-full-2015-01-30/stanford-corenlp-3.5.1.jar",
-                "/home/sw/stanford-corenlp-full-2015-01-30/stanford-corenlp-3.5.1-models.jar",
-                "/home/sw/stanford-srparser-2014-10-23-models.jar",  # optional: for shift-reduce parser
+                "/home/sw/stanford-srparser-2014-10-23-models.jar",
                 )
             ):
+        """
+        mode: if you supply this as a single string, we'll use a prebaked set
+        of annotators and output_types.  if you don't want this, specify
+        either (configfile or configdict) and and output_types.
+
+        corenlp_dir: supply this with the path of the unzipped directory from
+        the corenlp download.  this class will put all *.jar files within the
+        directory on the java classpath.  set to None if you'd rather manage
+        the classpath yourself.
+
+        corenlp_jars: any extra jars to add to the classpath.  should be a list
+        or tuple of strings.
+
+        output_types: give a list of strings to manually specify which
+        annotations to have in the output.
+
+        configfile, configdict: can give a corenlp configuration, either as an
+        external file (like the .ini or java properties format, whatever it
+        is), or else as a python dictionary.
+
+        server_port: have to specify this if you want to run multple instances
+        in separate processes.  todo we should use some other communication
+        mechanism that doesnt have to worry about this
+        """
         self.mode = mode
         self.proc = None
         self.server_port = server_port
@@ -70,7 +93,16 @@ class SockWrap:
         self.configdict = configdict
         self.output_types = output_types
 
-        assert any(os.path.exists(f) for f in corenlp_jars), "CoreNLP jar file does not seem to exist; are the paths correct?  Searched files: %s" % repr(corenlp_jars)
+        all_corenlp_jars = []
+        if corenlp_dir:
+            assert os.path.exists(corenlp_dir)
+            dirjars = glob.glob("%s/*.jar" % corenlp_dir)
+            dirjars.sort()
+            dirjars = [d for d in dirjars if "-sources" not in d]
+            all_corenlp_jars += dirjars
+        assert isinstance(corenlp_jars, (list,tuple))
+        all_corenlp_jars += corenlp_jars
+        assert any(os.path.exists(f) for f in all_corenlp_jars), "CoreNLP jar file does not seem to exist; are the paths correct?  Searched files: %s" % repr(all_corenlp_jars)
 
         local_libdir = os.path.join(os.path.abspath(os.path.dirname(__file__)),
                                     'lib')
@@ -82,7 +114,7 @@ class SockWrap:
                 os.path.join(local_libdir, "jackson-all-1.9.11.jar"),
         ]
 
-        jars += corenlp_jars
+        jars += all_corenlp_jars
         self.classpath = ':'.join(jars)
 
         # LOG.info("CLASSPATH: " + self.classpath)
