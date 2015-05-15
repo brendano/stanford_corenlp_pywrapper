@@ -35,7 +35,7 @@ LOG.setLevel("INFO")
 # LOG.setLevel("DEBUG")
 
 COMMAND = """
-exec {JAVA} -Xmx{XMX_AMOUNT} -cp '{classpath}'
+exec {JAVA} -Xmx{XMX_AMOUNT} -XX:ParallelGCThreads=1 -cp '{classpath}'
     corenlp.SocketServer --server {server_port} {more_config}"""
 
 JAVA = "java"
