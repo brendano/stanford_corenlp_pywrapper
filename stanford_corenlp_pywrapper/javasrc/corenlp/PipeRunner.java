@@ -6,11 +6,21 @@ import util.Arr;
 import util.BasicFileIO;
 import util.JsonUtil;
 import util.U;
-import corenlp.Parse.InputFormat;
-
+import corenlp.JsonPipeline.InputFormat;
+/**
+ * stdin/stdout commandline pipe mode that lightly wraps JsonPipeline.
+ * 
+ * INPUT: one line per document.
+ *  	docid \t TextAsJsonStringOrObjectWithTextField 
+ *  OUTPUT: as JSON, one doc per line ("jdoc").
+ *    docid \t {sentences: [ {sentobj}, {sentobj}, ... ]}
+ *  where each sentobj is
+ *    {tokens: [...], char_offsets: [...], ....}
+ *
+ */
 public class PipeRunner {
 	ProcessingMode mode;
-	Parse parse;
+	JsonPipeline parse;
 
 	/** the pre-baked processing modes, that define annotators and outputs. */
 	static enum ProcessingMode {

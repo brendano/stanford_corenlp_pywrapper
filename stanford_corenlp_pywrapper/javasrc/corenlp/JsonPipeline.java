@@ -37,19 +37,11 @@ import edu.stanford.nlp.semgraph.SemanticGraphCoreAnnotations.CollapsedCCProcess
 import edu.stanford.nlp.semgraph.SemanticGraphEdge;
 
 /** 
- * A wrapper around a CoreNLP object that set up annotators, and can turn annotations into JSON.
+ * A wrapper around a CoreNLP Pipeline object that knows how to turn output annotations into JSON.
  * 
- * Also includes a commandline mode that's a stdin/stdout filter.  Not used for server wrapper operation.
- * INPUT: one line per document.
- *  	docid \t TextAsJsonStringOrObjectWithTextField 
- *  OUTPUT: as JSON, one doc per line ("jdoc").
- *    docid \t {sentences: [ {sentobj}, {sentobj}, ... ]}
- *  where each sentobj is
- *    {tokens: [...], char_offsets: [...], ....}
- *    
  *  TODO: no coref yet, will be an 'entities' key in the document's json object.
  */
-public class Parse {
+public class JsonPipeline {
 
 	StanfordCoreNLP pipeline;
 	Properties props = new Properties();
@@ -59,7 +51,7 @@ public class Parse {
 	int numChars = 0;
 	long startMilli = System.currentTimeMillis();
 	
-	public Parse() {
+	public JsonPipeline() {
 	}
 
 	static enum InputFormat {

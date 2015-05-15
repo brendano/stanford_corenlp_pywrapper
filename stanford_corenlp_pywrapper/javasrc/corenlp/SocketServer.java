@@ -20,8 +20,6 @@ import util.JsonUtil;
 import util.U;
 
 /** 
- * "PipeCommandRunner" is a bad name because actually this is always used for sockets mode now.
- * 
  * TWO MODES OF OPERATION:
  * (1) sockets
  * (2) stdin-based pipe control, output to temp files.  this is lame and deprecated.  maybe could be revived with named pipes or something fancier.
@@ -68,16 +66,16 @@ import util.U;
  *  the client is responsible for waiting on this, i guess with a busy wait.
  *  yes, sockets seem like a better system, no?
  */
-public class PipeCommandRunner {
-	Parse parser;
+public class SocketServer {
+	JsonPipeline parser;
 	
 	/** only used for server mode */
 	int port = -1;
 	
 	public static void main(String[] args) throws Exception {
 		boolean doServer = false;
-		PipeCommandRunner runner = new PipeCommandRunner();
-		runner.parser = new Parse();
+		SocketServer runner = new SocketServer();
+		runner.parser = new JsonPipeline();
 
 		while (args.length > 1) {
 			if (args[0].equals("--server")) {
