@@ -4,37 +4,44 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
 import org.codehaus.jackson.JsonNode;
 
+import util.JsonUtil;
+
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
-import util.Arr;
-import util.BasicFileIO;
-import util.JsonUtil;
-import util.U;
+import edu.stanford.nlp.ling.CoreAnnotations.CharacterOffsetBeginAnnotation;
+import edu.stanford.nlp.ling.CoreAnnotations.CharacterOffsetEndAnnotation;
+import edu.stanford.nlp.ling.CoreAnnotations.EntityTypeAnnotation;
 import edu.stanford.nlp.ling.CoreAnnotations.LemmaAnnotation;
+import edu.stanford.nlp.ling.CoreAnnotations.MentionsAnnotation;
 import edu.stanford.nlp.ling.CoreAnnotations.NamedEntityTagAnnotation;
 import edu.stanford.nlp.ling.CoreAnnotations.NormalizedNamedEntityTagAnnotation;
 import edu.stanford.nlp.ling.CoreAnnotations.PartOfSpeechAnnotation;
+import edu.stanford.nlp.ling.CoreAnnotations.SentenceIndexAnnotation;
 import edu.stanford.nlp.ling.CoreAnnotations.SentencesAnnotation;
+import edu.stanford.nlp.ling.CoreAnnotations.TokenBeginAnnotation;
+import edu.stanford.nlp.ling.CoreAnnotations.TokenEndAnnotation;
 import edu.stanford.nlp.ling.CoreAnnotations.TokensAnnotation;
 import edu.stanford.nlp.ling.CoreLabel;
 import edu.stanford.nlp.ling.IndexedWord;
 import edu.stanford.nlp.pipeline.Annotation;
 import edu.stanford.nlp.pipeline.StanfordCoreNLP;
-import edu.stanford.nlp.trees.TreeCoreAnnotations;
-import edu.stanford.nlp.util.CoreMap;
 // paths for stanford 3.2.0.  before that, it's e.s.nlp.trees.semgraph.SemanticGraph
 import edu.stanford.nlp.semgraph.SemanticGraph;
 import edu.stanford.nlp.semgraph.SemanticGraphCoreAnnotations.BasicDependenciesAnnotation;
 import edu.stanford.nlp.semgraph.SemanticGraphCoreAnnotations.CollapsedCCProcessedDependenciesAnnotation;
 import edu.stanford.nlp.semgraph.SemanticGraphEdge;
+import edu.stanford.nlp.time.TimeAnnotations.TimexAnnotation;
+import edu.stanford.nlp.trees.TreeCoreAnnotations;
+import edu.stanford.nlp.util.CoreMap;
 
 /** 
  * A wrapper around a CoreNLP Pipeline object that knows how to turn output annotations into JSON,
@@ -93,6 +100,69 @@ public class JsonPipeline {
 		SemanticGraph dependencies = sentence.get(BasicDependenciesAnnotation.class);
 		List deps = jsonFriendlyDeps(dependencies);
 		sent_info.put("deps_basic", deps);
+	}
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	static void addEntityMentions(Map<String,Object> sent_info, CoreMap sentence) {
+        List<CoreMap> coreMentions = sentence.get(MentionsAnnotation.class);
+        List<Map> jsonMentions = new ArrayList<>();
+        /* trying to figure out the keys in each mention. here's a printout from one.
+MENTION August 2014
+class edu.stanford.nlp.ling.CoreAnnotations$TextAnnotation	August 2014
+class edu.stanford.nlp.ling.CoreAnnotations$CharacterOffsetBeginAnnotation	3
+class edu.stanford.nlp.ling.CoreAnnotations$CharacterOffsetEndAnnotation	14
+class edu.stanford.nlp.ling.CoreAnnotations$TokensAnnotation	[August-2, 2014-3]
+class edu.stanford.nlp.ling.CoreAnnotations$TokenBeginAnnotation	1
+class edu.stanford.nlp.ling.CoreAnnotations$TokenEndAnnotation	3
+class edu.stanford.nlp.ling.CoreAnnotations$NamedEntityTagAnnotation	DATE
+class edu.stanford.nlp.ling.CoreAnnotations$NormalizedNamedEntityTagAnnotation	2014-08
+class edu.stanford.nlp.ling.CoreAnnotations$EntityTypeAnnotation	DATE
+class edu.stanford.nlp.ling.CoreAnnotations$SentenceIndexAnnotation	0
+class edu.stanford.nlp.time.TimeAnnotations$TimexAnnotation	<TIMEX3 tid="t1" type="DATE" value="2014-08">August 2014</TIMEX3>
+MENTION Barack Obama
+class edu.stanford.nlp.ling.CoreAnnotations$TextAnnotation	Barack Obama
+class edu.stanford.nlp.ling.CoreAnnotations$CharacterOffsetBeginAnnotation	17
+class edu.stanford.nlp.ling.CoreAnnotations$CharacterOffsetEndAnnotation	29
+class edu.stanford.nlp.ling.CoreAnnotations$TokensAnnotation	[Barack-5, Obama-6]
+class edu.stanford.nlp.ling.CoreAnnotations$TokenBeginAnnotation	4
+class edu.stanford.nlp.ling.CoreAnnotations$TokenEndAnnotation	6
+class edu.stanford.nlp.ling.CoreAnnotations$NamedEntityTagAnnotation	PERSON
+class edu.stanford.nlp.ling.CoreAnnotations$EntityTypeAnnotation	PERSON
+class edu.stanford.nlp.ling.CoreAnnotations$SentenceIndexAnnotation	0
+MENTION Paris
+class edu.stanford.nlp.ling.CoreAnnotations$TextAnnotation	Paris
+class edu.stanford.nlp.ling.CoreAnnotations$CharacterOffsetBeginAnnotation	66
+class edu.stanford.nlp.ling.CoreAnnotations$CharacterOffsetEndAnnotation	71
+class edu.stanford.nlp.ling.CoreAnnotations$TokensAnnotation	[Paris-5]
+class edu.stanford.nlp.ling.CoreAnnotations$TokenBeginAnnotation	14
+class edu.stanford.nlp.ling.CoreAnnotations$TokenEndAnnotation	15
+class edu.stanford.nlp.ling.CoreAnnotations$NamedEntityTagAnnotation	LOCATION
+class edu.stanford.nlp.ling.CoreAnnotations$EntityTypeAnnotation	LOCATION
+class edu.stanford.nlp.ling.CoreAnnotations$SentenceIndexAnnotation	1
+         */
+        for (CoreMap mention : coreMentions) {
+//            U.p("MENTION " + mention);
+//        	for (Class k : mention.keySet()) {
+//        		U.pf("%s\t%s\n", k, mention.get(k));
+//        	}
+            Map m = new HashMap<String, Object>();
+            m.put("tokspan", Lists.newArrayList(
+            		mention.get(TokenBeginAnnotation.class).intValue(),
+            		mention.get(TokenEndAnnotation.class).intValue()));
+            m.put("charspan", Lists.newArrayList(
+            		mention.get(CharacterOffsetBeginAnnotation.class).intValue(),
+            		mention.get(CharacterOffsetEndAnnotation.class).intValue()));
+            m.put("sentence", mention.get(SentenceIndexAnnotation.class).intValue());
+            String entityType = mention.get(EntityTypeAnnotation.class);
+            m.put("type", entityType);
+            if (mention.containsKey(NormalizedNamedEntityTagAnnotation.class)) {
+            	m.put("normalized", mention.get(NormalizedNamedEntityTagAnnotation.class));
+            }
+            if (mention.containsKey(TimexAnnotation.class)) {
+            	m.put("timex_xml", mention.get(TimexAnnotation.class).toString());
+            }
+            jsonMentions.add(m);
+        }
+        sent_info.put("entitymentions", jsonMentions);
 	}
 	
 	@SuppressWarnings({ "rawtypes", "unchecked" })
@@ -171,7 +241,7 @@ public class JsonPipeline {
 		case "natlog": throw new RuntimeException("TODO");
 		case "quote": throw new RuntimeException("TODO");
 		case "entitymentions":
-			// TODO
+			addEntityMentions(sent_info, sentence);
 			break;
 		default:
 			throw new RuntimeException("don't know how to handle annotator " + annotator);
