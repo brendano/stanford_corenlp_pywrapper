@@ -6,7 +6,7 @@ import util.Arr;
 import util.BasicFileIO;
 import util.JsonUtil;
 import util.U;
-import corenlp.JsonPipeline.InputFormat;
+
 /**
  * stdin/stdout commandline pipe mode that lightly wraps JsonPipeline.
  * 
@@ -21,6 +21,11 @@ import corenlp.JsonPipeline.InputFormat;
 public class PipeRunner {
 	ProcessingMode mode;
 	JsonPipeline parse;
+	
+	static enum InputFormat {
+		DETECT_JSON_VARIANT,
+		RAW_TEXT
+	};
 
 	/** the pre-baked processing modes, that define annotators and outputs. */
 	static enum ProcessingMode {
@@ -114,16 +119,17 @@ public class PipeRunner {
 			else { throw new RuntimeException("bad flag: " + flag); }
 		}
 		
-		PipeRunner runner = new PipeRunner();
-//		Parse runner = new Parse();
 		
+		throw new RuntimeException("TODO need to handle mode parsing; in the meantime this is broken");
+		
+//		PipeRunner runner = new PipeRunner();
 //		String _mode = args[0];
 //		ProcessingMode mode = modeFromString(_mode);
 //		if (runner.mode==null) {
 //			U.pf("Bad mode '%s' ... to disable a mode, use 'nomode'\n", _mode);
 //			usage();
 //		}
-		runner.runStdinStdout(inputFormat);
+//		runner.runStdinStdout(inputFormat);
 	}
 	
 

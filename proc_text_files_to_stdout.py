@@ -11,11 +11,11 @@ e.g.
 python proc_text_files_to_stdout.py pos *.txt > allpos.anno
 """
 
-import sys, re, os, json
+import sys, re, os
 mode = sys.argv[1]
 
 import stanford_corenlp_pywrapper.sockwrap as sw
-ss = sw.SockWrap(mode)
+ss = sw.SockWrap(mode)  # need to override corenlp_jars
 
 for filename in sys.argv[2:]:
     docid = os.path.basename(filename)

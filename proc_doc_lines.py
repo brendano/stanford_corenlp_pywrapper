@@ -18,7 +18,7 @@ import sys
 mode = sys.argv[1]
 
 import stanford_corenlp_pywrapper.sockwrap as sw
-ss = sw.SockWrap(mode)
+ss = sw.SockWrap(mode)  # need to override corenlp_jars
 
 for line in sys.stdin:
     text = line.rstrip("\n").decode('utf8','replace')

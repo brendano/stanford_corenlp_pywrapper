@@ -31,7 +31,7 @@ LOG.setLevel("INFO")
 
 COMMAND = """
 exec {JAVA} -Xmx{XMX_AMOUNT} -cp '{classpath}'
-    corenlp.PipeCommandRunner --server {server_port} {more_config}"""
+    corenlp.SocketServer --server {server_port} {more_config}"""
 
 JAVA = "java"
 XMX_AMOUNT = "4g"
@@ -43,15 +43,20 @@ STARTUP_BUSY_WAIT_INTERVAL_SEC = 5.0
 TEMP_DIR = None
 
 
-def command(mode=None, configfile=None, configdict=None, output_types=None, **kwargs):
+def command(mode=None, configfile=None, configdict=None, **kwargs):
     d = {}
     d.update(globals())
     d.update(**kwargs)
 
     more_config = ""
+    if mode is None and configfile is None and configdict is None:
+        assert False, "Need to set mode, or the annotators directly, for this wrapper to work."
     if mode:
-        if configdict is None:
+        if configdict is not None:
+            assert 'annotators' not in configdict, "mode was given but annotators are set in the configdict.  use only one please."
+        elif configdict is None:
             configdict = {}
+        LOG.info("mode given as '%s' so setting annotators: %s" % (mode, MODES[mode]['annotators']))
         configdict['annotators'] = MODES[mode]['annotators']
     if configfile:
         more_config += " --configfile {}".format(configfile)
@@ -59,8 +64,6 @@ def command(mode=None, configfile=None, configdict=None, output_types=None, **kw
         j = json.dumps(configdict)
         assert "'" not in j, "can't handle single quote in config values"
         more_config += " --configdict '{}'".format(j)
-    if output_types:
-        more_config += " --output-types '{}'".format(' '.join(output_types))
     d['more_config'] = more_config
 
     return COMMAND.format(**d).replace("\n", " ")
@@ -73,7 +76,7 @@ class SubprocessCrashed(Exception):
 class SockWrap:
 
     def __init__(self, mode=None, server_port=12340,
-            configfile=None, configdict=None, output_types=None,
+            configfile=None, configdict=None,
             corenlp_jars=(
                 "/home/sw/corenlp/stanford-corenlp-full-2015-04-20/*",
                 "/home/sw/stanford-srparser-2014-10-23-models.jar",
@@ -102,7 +105,6 @@ class SockWrap:
         self.server_port = server_port
         self.configfile = configfile
         self.configdict = configdict
-        self.output_types = output_types
 
         assert isinstance(corenlp_jars, (list,tuple))
 
@@ -112,13 +114,7 @@ class SockWrap:
         local_libdir = os.path.join(os.path.abspath(os.path.dirname(__file__)),
                                     'lib')
 
-        jars = [os.path.join(local_libdir, "piperunner.jar"),
-                # for eclipse development only
-                # "/Users/brendano/myutil/bin",
-                os.path.join(local_libdir, "guava-13.0.1.jar"),
-                os.path.join(local_libdir, "jackson-all-1.9.11.jar"),
-        ]
-
+        jars = [os.path.join(local_libdir, "*")]
         jars += corenlp_jars
         self.classpath = ':'.join(jars)
 

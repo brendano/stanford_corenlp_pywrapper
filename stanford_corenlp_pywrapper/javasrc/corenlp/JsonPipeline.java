@@ -37,7 +37,8 @@ import edu.stanford.nlp.semgraph.SemanticGraphCoreAnnotations.CollapsedCCProcess
 import edu.stanford.nlp.semgraph.SemanticGraphEdge;
 
 /** 
- * A wrapper around a CoreNLP Pipeline object that knows how to turn output annotations into JSON.
+ * A wrapper around a CoreNLP Pipeline object that knows how to turn output annotations into JSON,
+ * with 0-oriented indexing conventions.
  * 
  *  TODO: no coref yet, will be an 'entities' key in the document's json object.
  */
@@ -54,11 +55,6 @@ public class JsonPipeline {
 	public JsonPipeline() {
 	}
 
-	static enum InputFormat {
-		DETECT_JSON_VARIANT,
-		RAW_TEXT
-	};
-
 	static void addTokenBasics(Map<String,Object> sent_info, CoreMap sentence) {
 		List<List<Integer>> tokenSpans = Lists.newArrayList();
 		List<String> tokenTexts = Lists.newArrayList();
@@ -70,6 +66,7 @@ public class JsonPipeline {
 		sent_info.put("tokens", (Object) tokenTexts);
 		sent_info.put("char_offsets", (Object) tokenSpans);
 	}
+	
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	static void addTokenAnno(Map<String,Object> sent_info, CoreMap sentence,
 			String keyname, Class annoClass) {
@@ -79,21 +76,25 @@ public class JsonPipeline {
 		}
 		sent_info.put(keyname, (Object) tokenAnnos);
 	}
+	
 	static void addParseTree(Map<String,Object> sent_info, CoreMap sentence) {
 		sent_info.put("parse", sentence.get(TreeCoreAnnotations.TreeAnnotation.class).toString());
 	}
+	
 	@SuppressWarnings("rawtypes")
 	static void addDepsCC(Map<String,Object> sent_info, CoreMap sentence) {
 		SemanticGraph dependencies = sentence.get(CollapsedCCProcessedDependenciesAnnotation.class);
 		List deps = jsonFriendlyDeps(dependencies);
 		sent_info.put("deps_cc", deps);
 	}
+	
 	@SuppressWarnings("rawtypes")
 	static void addDepsBasic(Map<String,Object> sent_info, CoreMap sentence) {
 		SemanticGraph dependencies = sentence.get(BasicDependenciesAnnotation.class);
 		List deps = jsonFriendlyDeps(dependencies);
 		sent_info.put("deps_basic", deps);
 	}
+	
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	static List jsonFriendlyDeps(SemanticGraph dependencies) {
 		List deps = new ArrayList();
@@ -135,18 +136,25 @@ public class JsonPipeline {
 	/** annotator is a stanford corenlp notion.  */
 	void addAnnoToSentenceObject(Map<String,Object> sent_info, CoreMap sentence, String annotator) {
 		switch(annotator) {
-		case "tokens":
-			break;
+		case "tokenize":
 		case "cleanxml":
-			break;
 		case "ssplit":
 			break;
 		case "pos":
 			addTokenAnno(sent_info,sentence, "pos", PartOfSpeechAnnotation.class);
 			break;
-		case "lemmas":
+		case "lemma":
 			addTokenAnno(sent_info,sentence, "lemmas", LemmaAnnotation.class);
 			break;
+		case "ner":
+			addTokenAnno(sent_info, sentence, "ner", NamedEntityTagAnnotation.class);
+			addTokenAnno(sent_info, sentence, "normner", NormalizedNamedEntityTagAnnotation.class);
+			break;
+		case "regexner":
+			addTokenAnno(sent_info, sentence, "ner", NamedEntityTagAnnotation.class);
+			break;
+		case "sentiment": throw new RuntimeException("TODO");
+		case "truecase": throw new RuntimeException("TODO");
 		case "parse":
 			addParseTree(sent_info,sentence);
 			addDepsCC(sent_info,sentence);
@@ -156,9 +164,14 @@ public class JsonPipeline {
 			addDepsCC(sent_info,sentence);
 			addDepsBasic(sent_info,sentence);
 			break;
-		case "ner":
-			addTokenAnno(sent_info, sentence, "ner", NamedEntityTagAnnotation.class);
-			addTokenAnno(sent_info, sentence, "normner", NormalizedNamedEntityTagAnnotation.class);
+		case "dcoref":
+			// TODO
+			break;
+		case "relation": throw new RuntimeException("TODO");
+		case "natlog": throw new RuntimeException("TODO");
+		case "quote": throw new RuntimeException("TODO");
+		case "entitymentions":
+			// TODO
 			break;
 		default:
 			throw new RuntimeException("don't know how to handle annotator " + annotator);
@@ -167,8 +180,12 @@ public class JsonPipeline {
 
 	String[] annotators() {
 		String annotatorsAllstr = (String) props.get("annotators");
+		if (annotatorsAllstr==null || annotatorsAllstr.trim().isEmpty()) {
+			throw new RuntimeException("'annotators' property seems to not be set");
+		}
 		return annotatorsAllstr.trim().split(",\\s*");
 	}
+	
 	/** runs the corenlp pipeline with all options, and returns all results as a JSON object. */
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	JsonNode processTextDocument(String doctext) {
