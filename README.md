@@ -89,7 +89,7 @@ protocol, and you can pass `raw=True` to get it without deserializing it).
 ```
 
 You can also specify the annotators directly. For example,
-say we want to parse but don't want lemmas or dependencies. This can be done
+say we want to parse but don't want lemmas. This can be done
 with the `configdict` option:
 
 ```
@@ -179,8 +179,8 @@ Another example: coreference.  All the other annotators only put things into the
     with `./build.sh`.
 
 * If you want to run multiple instances on the same machine, make sure each
-  SockWrap instance has a unique port number.  (TOCONSIDER: use a different
-  mechanism that doesn't require port numbers.)
+  SockWrap instance has a unique port number.  (Future todo: we should
+  implement a different mechanism that doesn't require port numbers.)
 
 ## Testing
 
