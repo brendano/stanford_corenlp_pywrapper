@@ -69,8 +69,6 @@ public class PipeRunner {
 
 	public void runStdinStdout(InputFormat inputFormat) {
 		for (String line : BasicFileIO.STDIN_LINES) {
-			parse.numDocs++;
-			parse.numChars += line.length();
 			System.err.print(".");
 			
 			String[] parts = line.split("\t");

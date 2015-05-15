@@ -206,6 +206,21 @@ public class SocketServer {
 			bb.putLong(0, resultLength);
 			clientSocket.getOutputStream().write(bb.array());
 			clientSocket.getOutputStream().write(resultToReturn);
+			
+			if (parser.numDocs>0 && (
+				parser.numDocs <= 10 || 
+				(parser.numDocs <= 1000 && (parser.numDocs % 100 == 0)) ||
+				(parser.numDocs % 1000 == 0)
+				)) {
+				double elapsed = (double) (System.currentTimeMillis() - parser.startMilli) / 1000.0;
+				System.err.printf("[Server] INPUT: %d documents, %d characters, %d tokens, %.1f char/doc, %.1f tok/doc RATES: %.3f doc/sec, %.1f tok/sec\n",
+						parser.numDocs, parser.numChars, parser.numTokens,
+						parser.numChars*1.0 / parser.numDocs,
+						parser.numTokens*1.0 / parser.numDocs,
+						parser.numDocs*1.0 / elapsed,
+						parser.numTokens*1.0 / elapsed
+						);
+			}
 		}
 //		parseServer.close();
 	}

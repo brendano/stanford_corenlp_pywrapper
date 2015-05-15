@@ -62,7 +62,7 @@ public class JsonPipeline {
 	int numTokens = 0;
 	int numDocs = 0;
 	int numChars = 0;
-	long startMilli = System.currentTimeMillis();
+	long startMilli = -1;
 	
 	public JsonPipeline() {
 	}
@@ -294,6 +294,10 @@ class edu.stanford.nlp.ling.CoreAnnotations$SentenceIndexAnnotation	1
 	/** runs the corenlp pipeline with all options, and returns all results as a JSON object. */
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	JsonNode processTextDocument(String doctext) {
+		if (startMilli==-1)  startMilli = System.currentTimeMillis();
+		numDocs++;
+		numChars += doctext.length();
+
 		Annotation document = new Annotation(doctext);
 		pipeline.annotate(document);
 
