@@ -16,11 +16,11 @@ MODES = {
     'description': "tokenization and sentence splitting (included in all subsequent ones)", },
 'pos':     {'annotators':"tokenize, ssplit, pos, lemma",
     'description':"POS (and lemmas)",},
-'ner':     {'annotators':"tokenize, ssplit, pos, lemma, ner",
+'ner':     {'annotators':"tokenize, ssplit, pos, lemma, ner, entitymentions",
     'description':"POS and NER (and lemmas)",},
 'parse':    {'annotators':"tokenize, ssplit, pos, lemma, parse",
     'description':"fairly basic parsing with POS, lemmas, trees, dependencies",},
-'nerparse': {'annotators':"tokenize, ssplit, pos, lemma, ner, parse",
+'nerparse': {'annotators':"tokenize, ssplit, pos, lemma, ner, entitymentions, parse",
     'description':"parsing with NER, POS, lemmas, depenencies."},
 }
 
