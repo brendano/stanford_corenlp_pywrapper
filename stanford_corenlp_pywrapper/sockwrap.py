@@ -1,5 +1,5 @@
 """
-the socket server approach.
+Client and process monitor for the java socket server.
 """
 
 from __future__ import division
@@ -9,9 +9,12 @@ try:
 except ImportError:
     import json
 
+# SUGGESTED: for constituent parsing models, specify shift-reduce parser in
+# configdict with:
+#  'parse.model': 'edu/stanford/nlp/models/srparser/englishSR.ser.gz'
+
 MODES = {
 
-'nomode':  {'description':"you want to set 'annotators' yourself", "annotators": None},
 'ssplit':  {'annotators': "tokenize, ssplit",
     'description': "tokenization and sentence splitting (included in all subsequent ones)", },
 'pos':     {'annotators':"tokenize, ssplit, pos, lemma",
@@ -22,6 +25,8 @@ MODES = {
     'description':"fairly basic parsing with POS, lemmas, trees, dependencies",},
 'nerparse': {'annotators':"tokenize, ssplit, pos, lemma, ner, entitymentions, parse",
     'description':"parsing with NER, POS, lemmas, depenencies."},
+'coref': {'annotators':"tokenize, ssplit, pos, lemma, ner, entitymentions, parse, dcoref",
+    'description':"Coreference, including constituent parsing."}
 }
 
 logging.basicConfig()  # wtf, why we have to call this?

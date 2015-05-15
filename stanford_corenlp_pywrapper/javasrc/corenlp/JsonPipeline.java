@@ -12,11 +12,14 @@ import java.util.Properties;
 import org.codehaus.jackson.JsonNode;
 
 import util.JsonUtil;
+import util.U;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
+import edu.stanford.nlp.dcoref.CorefChain;
+import edu.stanford.nlp.dcoref.CorefCoreAnnotations.CorefChainAnnotation;
 import edu.stanford.nlp.ling.CoreAnnotations.CharacterOffsetBeginAnnotation;
 import edu.stanford.nlp.ling.CoreAnnotations.CharacterOffsetEndAnnotation;
 import edu.stanford.nlp.ling.CoreAnnotations.EntityTypeAnnotation;
@@ -48,6 +51,8 @@ import edu.stanford.nlp.util.CoreMap;
  * with 0-oriented indexing conventions.
  * 
  *  TODO: no coref yet, will be an 'entities' key in the document's json object.
+ *  
+ *  implementation: needs to mirror edu/stanford/nlp/pipeline/XMLOutputter.java somewhat
  */
 public class JsonPipeline {
 
@@ -203,6 +208,37 @@ class edu.stanford.nlp.ling.CoreAnnotations$SentenceIndexAnnotation	1
 		pipeline = new StanfordCoreNLP(props);
 	}
 
+	List getCorefInfo(Annotation doc) {
+		Map<Integer, CorefChain> corefChains = doc.get(CorefChainAnnotation.class);
+//		List<CoreMap> sentences = doc.get(SentencesAnnotation.class);
+		List entities = new ArrayList();
+		for (CorefChain chain : corefChains.values()) {
+			List mentions = new ArrayList();
+			CorefChain.CorefMention representative = chain.getRepresentativeMention();
+			for (CorefChain.CorefMention corement : chain.getMentionsInTextualOrder()) {
+				Map outment = new HashMap();
+				outment.put("sentence", corement.sentNum-1);
+				outment.put("tokspan_in_sentence", Lists.newArrayList(
+								corement.startIndex-1, corement.endIndex-1));
+				outment.put("head",corement.headIndex-1);
+				outment.put("gender", corement.gender.toString());
+				outment.put("animacy", corement.animacy.toString());
+				outment.put("number", corement.number.toString());
+				outment.put("mentiontype", corement.mentionType.toString());
+				outment.put("mentionid", corement.mentionID);
+				if (representative!=null && corement.mentionID==representative.mentionID) {
+					outment.put("representative", true);
+				}
+				mentions.add(outment);
+			}
+			Map entity = ImmutableMap.builder()
+					.put("mentions", mentions)
+					.put("entityid", chain.getChainID())
+					.build();
+			entities.add(entity);
+		}
+		return entities;
+	}
 	/** annotator is a stanford corenlp notion.  */
 	void addAnnoToSentenceObject(Map<String,Object> sent_info, CoreMap sentence, String annotator) {
 		switch(annotator) {
@@ -235,7 +271,6 @@ class edu.stanford.nlp.ling.CoreAnnotations$SentenceIndexAnnotation	1
 			addDepsBasic(sent_info,sentence);
 			break;
 		case "dcoref":
-			// TODO
 			break;
 		case "relation": throw new RuntimeException("TODO");
 		case "natlog": throw new RuntimeException("TODO");
@@ -275,11 +310,16 @@ class edu.stanford.nlp.ling.CoreAnnotations$SentenceIndexAnnotation	1
 			outSentences.add(sent_info);
 		}
 
-		Map outDoc = new ImmutableMap.Builder()
-		//	        	.put("text", doctext)
-			.put("sentences", outSentences)
-			// coref entities would go here too
-			.build();
+
+		ImmutableMap.Builder b = new ImmutableMap.Builder();
+//		b.put("text", doctext);
+		b.put("sentences", outSentences);
+		
+		if (Lists.newArrayList(annotators()).contains("dcoref")) {
+			List outCoref = getCorefInfo(document);
+			b.put("entities", outCoref);
+		}
+		Map outDoc = b.build();
 		return JsonUtil.toJson(outDoc);
 	}
 

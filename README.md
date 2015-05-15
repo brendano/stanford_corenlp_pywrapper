@@ -1,7 +1,7 @@
 This is a Python wrapper for the [Stanford CoreNLP][1] library, allowing
-sentence splitting, POS/NER, and parse annotations.  (Coreference is not
-supported currently.)  It runs the Java software as a subprocess and
-communicates over sockets.  This library handles timeouts and some process
+sentence splitting, POS/NER, temporal expression, constituent and dependency
+parsing, and coreference annotations. It runs the Java software as a subprocess
+and communicates over sockets.  This library handles timeouts and some process
 management (restarting the server if it seems to have crashed).
 
 Alternatives you may want to consider:
@@ -10,8 +10,8 @@ Alternatives you may want to consider:
   * https://github.com/dasmith/stanford-corenlp-python
   * http://py4j.sourceforge.net/
 
-This wrapper's defaults assume CoreNLP 3.5.  It uses whatever the CoreNLP
-default settings are, but they can be overriden with configuration (from a file or a dictionary).
+This wrapper uses whatever the CoreNLP default settings are, but they can be
+overriden with configuration (from a file or a dictionary).
 The included `sample.ini` configuration file, for example, runs with the
 [shift-reduce][2] parser (and requires the appropriate model file to be
 downloaded).
@@ -21,7 +21,7 @@ downloaded).
 
 ## Install
 
-You can install the program using something like:
+If you like, you can install it with something like this:
 
 ```
 git clone https://github.com/brendano/stanford_corenlp_pywrapper
@@ -29,46 +29,49 @@ cd stanford_corenlp_pywrapper
 pip install .
 ```
 
-Java version 7 or higher is required to be installed.
-(CoreNLP 3.5 might requires Jave 8 actually?)
+Java version 8 is required to be installed (version 7 may work with older
+CoreNLP versions).  We have used the wrapper most recently with CoreNLP 3.5.2,
+and have used it with older versions as well.
 
 ## Commandline usage
 
 See `proc_text_files.py` for an example of processing text files,
 or `proc_doc_lines.py` for an alternative input/output format.
-For more sophisticated usage, you'll want to write your own Python code
-as described below.
+Note that you'll have to edit them to specify the jar paths as described below.
 
 ## Usage from Python
 
-The basic arguments to open a server are (1) the pipeline type (see
-`javasrc/corenlp/Parse.java` for the list of possible ones), and (2) the
-full paths to the CoreNLP jar files. Here we assume the program has been
-installed using `pip install`.
+The basic arguments to open a server are 
+    (1) the pipeline mode, or the annotator pipeline, and
+    (2) the paths to the CoreNLP jar files, for the java classpath.
+    
+Here we assume the program has been installed using `pip install`.  You will
+have to change `corenlp_jars` to where you have them on your system.
+Here's how to initialize the pipeline.
 
 ```
 >>> from stanford_corenlp_pywrapper import sockwrap
->>> p=sockwrap.SockWrap("pos",corenlp_jars=["stanford-corenlp-full-2015-01-30/stanford-corenlp-3.5.1.jar","stanford-corenlp-full-2015-01-30/stanford-corenlp-3.5.1-models.jar"])
+>>> proc = sockwrap.SockWrap("pos", corenlp_jars=["/home/sw/corenlp/stanford-corenlp-full-2015-04-20/*"])
 
-INFO:StanfordSocketWrap:Starting pipe subprocess, and waiting for signal it's ready, with command:  exec java -Xmx4g -cp /Users/brendano/sw/nlp/stanford-pywrapper/lib/piperunner.jar:/Users/brendano/sw/nlp/stanford-pywrapper/lib/guava-13.0.1.jar:/Users/brendano/sw/nlp/stanford-pywrapper/lib/jackson-all-1.9.11.jar:stanford-corenlp-full-2014-06-16/stanford-corenlp-3.4.jar:stanford-corenlp-full-2014-06-16/stanford-corenlp-3.4-models.jar:stanford-corenlp-full-2014-06-16/stanford-srparser-2014-07-01-models.jar     corenlp.PipeCommandRunner --server 12340  --mode pos
-[Server] Using mode type: pos
+INFO:StanfordSocketWrap:mode given as 'pos' so setting annotators: tokenize, ssplit, pos, lemma
+INFO:StanfordSocketWrap:Starting pipe subprocess, and waiting for signal it's ready, with command:  exec java -Xmx4g -cp '/Users/brendano/sw/nlp/stanford_corenlp_pywrapper/stanford_corenlp_pywrapper/lib/*:/home/sw/corenlp/stanford-corenlp-full-2015-04-20/*'     corenlp.SocketServer --server 12340  --configdict '{"annotators":"tokenize, ssplit, pos, lemma"}'
 Adding annotator tokenize
+TokenizerAnnotator: No tokenizer type provided. Defaulting to PTBTokenizer.
 Adding annotator ssplit
 Adding annotator pos
-Reading POS tagger model from edu/stanford/nlp/models/pos-tagger/english-left3words/english-left3words-distsim.tagger ... INFO:StanfordSocketWrap:Waiting for startup: ping got exception: <class 'socket.error'> [Errno 61] Connection refused
-done [1.6 sec].
+Reading POS tagger model from edu/stanford/nlp/models/pos-tagger/english-left3words/english-left3words-distsim.tagger ... done [1.2 sec].
 Adding annotator lemma
 [Server] Started socket server on port 12340
 INFO:StanfordSocketWrap:Successful ping. The server has started.
 INFO:StanfordSocketWrap:Subprocess is ready.
 ```
 
-The return values are JSON-safe data structures (in fact, the python<->java
-communication is a JSON protocol, and you can pass `raw=True` to get it
-without deserializing it).
+Now it's ready to parse documents.  You give it a string and it returns
+JSON-safe data structures (in fact, the python<->java communication is a JSON
+protocol, and you can pass `raw=True` to get it without deserializing it).
 
 ```
->>> p.parse_doc("hello world. how are you?")
+>>> proc.parse_doc("hello world. how are you?")
 {u'sentences': 
     [
         {u'tokens': [u'hello', u'world', u'.'],
@@ -85,32 +88,85 @@ without deserializing it).
 }
 ```
 
-Here is how to specify a configuration file:
+You can also specify the annotators directly. For example,
+say we want to parse but don't want lemmas or dependencies. This can be done
+with the `configdict` option:
 
 ```
->>> p=sockwrap.SockWrap("parse", configfile='sample.ini')
+>>> p = sockwrap.SockWrap(configdict={'annotators':'tokenize, ssplit, pos, parse'}, output_types=['pos','parse'])
+```
+
+Or use an external configuration file (of the same sort the original CoreNLP commandline uses):
+
+```
+>>> p = sockwrap.SockWrap(configfile='sample.ini')
 >>> p.parse_doc("hello world. how are you?")
 ...
 ```
 
-You can also give a configuration with a dictionary.  Furthermore, you can
-explicitly give it the output types, and not even use a mode at all. For
-example, say we want to parse but don't want lemmas or dependencies. This can
-be done with:
+The `annotators` configuration option is explained more on the CoreNLP webpage.
+
+Another example: using the shift-reduce constituent parser.  The jar paths will
+have to be changed for your system.
 
 ```
->>> p=sockwrap.SockWrap(configdict={'annotators':'tokenize, ssplit, pos, parse'}, output_types=['pos','parse'])
+>>> p = sockwrap.SockWrap(configdict={
+    'annotators':"tokenize,ssplit,pos,lemma,parse",
+    'parse.model': 'edu/stanford/nlp/models/srparser/englishSR.ser.gz'},  
+    corenlp_jars=["/path/to/stanford-corenlp-full-2015-04-20/*", "/path/to/stanford-srparser-2014-10-23-models.jar"])
 ```
 
-The `annotators` configuration setting is internal to CoreNLP; see their
-documentation how that works.  But `output_types` is specific to the wrapper
-code.  Parse.java defines what they are.  You're responsible for choosing
-`output_types` that are compatible with the annotators.  It's somewhat
-complicated because it's a weird many-to-many relationship within CoreNLP, so
-you have to read their documentation which sometimes may have the answer.
+Another example: coreference.  All the other annotators only put things into the top-level `sentences` attribute for the document.  But for coreference, you'll get data in `entities`.  Here, there are 3 entities. The first is "Fred", the second is "her", and the third is the telescope with two mentions ("telescope" and "It").
+
+```
+>>> proc = sockwrap.SockWrap("coref")
+>>> proc.parse_doc("Fred saw her through a telescope. It was broken.")['entities']
+[{u'entityid': 1,
+  u'mentions': [{u'animacy': u'ANIMATE',
+                 u'gender': u'MALE',
+                 u'head': 0,
+                 u'mentionid': 1,
+                 u'mentiontype': u'PROPER',
+                 u'number': u'SINGULAR',
+                 u'representative': True,
+                 u'sentence': 0,
+                 u'tokspan_in_sentence': [0, 1]}]},
+ {u'entityid': 2,
+  u'mentions': [{u'animacy': u'ANIMATE',
+                 u'gender': u'FEMALE',
+                 u'head': 2,
+                 u'mentionid': 2,
+                 u'mentiontype': u'PRONOMINAL',
+                 u'number': u'SINGULAR',
+                 u'representative': True,
+                 u'sentence': 0,
+                 u'tokspan_in_sentence': [2, 3]}]},
+ {u'entityid': 3,
+  u'mentions': [{u'animacy': u'INANIMATE',
+                 u'gender': u'NEUTRAL',
+                 u'head': 5,
+                 u'mentionid': 3,
+                 u'mentiontype': u'NOMINAL',
+                 u'number': u'SINGULAR',
+                 u'representative': True,
+                 u'sentence': 0,
+                 u'tokspan_in_sentence': [4, 6]},
+                {u'animacy': u'INANIMATE',
+                 u'gender': u'NEUTRAL',
+                 u'head': 0,
+                 u'mentionid': 4,
+                 u'mentiontype': u'PRONOMINAL',
+                 u'number': u'SINGULAR',
+                 u'sentence': 1,
+                 u'tokspan_in_sentence': [0, 1]}]}]
+```
 
 
 ## Notes
+
+* We always use 0-indexed numbering conventions for token, sentence, and
+  character indexes.  Spans are always inclusive-exclusive pairs, just like
+  Python slicing.
 
 * Some of the output messages are stderr from the CoreNLP subprocess.
   Everything starting with `INFO:` or `WARNING:` is from the Python logging
@@ -120,19 +176,11 @@ you have to read their documentation which sometimes may have the answer.
 * To use a different CoreNLP version, make sure the `corenlp_jars` 
     parameter is correct. If a future CoreNLP breaks binary (Java API)
     compatibility, you'll have to edit the Java server code and re-compile
-    `piperunner.jar` via `./build.sh`.
+    with `./build.sh`.
 
 * If you want to run multiple instances on the same machine, make sure each
   SockWrap instance has a unique port number.  (TOCONSIDER: use a different
   mechanism that doesn't require port numbers.)
-
-* An important to-do is to test this code's robustness in a variety of
-  situations.  Bugs will probably occur when processing larger and larger
-  datasets, and I don't know the right policies to have for timeouts, when to
-  give up and restart after a timeout, and whether to re-try analyzing a
-  document or give up and move on (because state dependence and "killer
-  documents" screw all this up in different ways).  Thanks to John Beieler for
-  testing on the PETRARCH news analysis pipeline.
 
 ## Testing
 
@@ -144,5 +192,3 @@ There are some pytest-style tests, though they're incomplete. Run:
 
 Copyright Brendan O'Connor (http://brenocon.com).  
 License GPL version 2 or later.
-
-Some Java files were copied from [github.com/brendano/myutil](github.com/brendano/myutil).
