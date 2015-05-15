@@ -39,7 +39,7 @@ import edu.stanford.nlp.semgraph.SemanticGraphEdge;
 /** 
  * A wrapper around a CoreNLP object that set up annotators, and can turn annotations into JSON.
  * 
- * Also includes a commandline mode.
+ * Also includes a commandline mode that's a stdin/stdout filter.  Not used for server wrapper operation.
  * INPUT: one line per document.
  *  	docid \t TextAsJsonStringOrObjectWithTextField 
  *  OUTPUT: as JSON, one doc per line ("jdoc").
@@ -48,22 +48,12 @@ import edu.stanford.nlp.semgraph.SemanticGraphEdge;
  *    {tokens: [...], char_offsets: [...], ....}
  *    
  *  TODO: no coref yet, will be an 'entities' key in the document's json object.
- *  
- *  see usage()
  */
 public class Parse {
 
 	StanfordCoreNLP pipeline;
-	ProcessingMode mode;
 	Properties props = new Properties();
-	String[] customOutputTypes;
 	
-	String[] outputTypes() {
-		if (customOutputTypes != null)
-			return customOutputTypes;
-		return defaultOutputsForMode(mode);
-	}
-
 	int numTokens = 0;
 	int numDocs = 0;
 	int numChars = 0;
@@ -72,77 +62,11 @@ public class Parse {
 	public Parse() {
 	}
 
-	/** the pre-baked processing modes, that define annotators and outputs. */
-	static enum ProcessingMode {
-		SSPLIT,
-		POS,
-		NER,
-		PARSE,
-		NERPARSE;
-	}
-
 	static enum InputFormat {
 		DETECT_JSON_VARIANT,
 		RAW_TEXT
 	};
 
-	static void usage() {
-		U.p("corenlp.Parse [options] PROCESSINGMODE\n" +
-				"Processes document texts on and outputs NLP-annotated versions.\n" +
-				"Both input and output formats are one document per line.\n" +
-				"\n" +
-				"You must supply an OUTPUTMODE, which is one of:\n" +
-				"  ssplit:     tokenization and sentence splitting (included in all subsequent ones)\n" +
-				"  pos:        POS (and lemmas)\n" +
-				"  ner:        POS and NER (and lemmas)\n" +
-				"  parse:  fairly basic parsing with POS, lemmas, trees, dependencies\n" +
-				"  nerparse:  parsing with NER, POS, lemmas, depenencies.\n" +
-				"              This is the maximum processing short of coreference.\n" +
-				"\n" +
-				"Input format can be either\n" +
-				"  one column:   TextField\n" +
-				"  two columns:  docid \\t TextField\n" +
-				"Where TextField could be either\n" +
-				"  * a JSON string, or\n" +
-				"  * a JSON object with field 'text'.\n" +
-				"--raw-input  allows the text field to be raw text, interpreted as UTF-8 encoded.\n" +
-				"Note that JSON strings can be preferable, since they can contain any type of whitespace.\n" +
-				"\n" +
-				"In all cases, the output mode is two-column: docid \\t NLPInfoAsJson\n" +
-				"");
-		System.exit(1);
-	}
-	
-	static ProcessingMode modeFromString(String _mode) {
-		return 
-			_mode.equals("ssplit") ? ProcessingMode.SSPLIT :
-			_mode.equals("pos") ? ProcessingMode.POS :
-			_mode.equals("ner") ? ProcessingMode.NER :
-			_mode.equals("parse") ? ProcessingMode.PARSE :
-			_mode.equals("nerparse") ? ProcessingMode.NERPARSE :
-			null;
-	}
-
-	static void setAnnotators(Properties props, ProcessingMode mode) {
-		if (mode==ProcessingMode.SSPLIT) {
-			props.put("annotators", "tokenize, ssplit");
-		}
-		else if (mode==ProcessingMode.POS) {
-			props.put("annotators", "tokenize, ssplit, pos, lemma");
-		}
-		else if (mode==ProcessingMode.NER) {
-			props.put("annotators", "tokenize, ssplit, pos, lemma, ner");
-		} 
-		else if (mode==ProcessingMode.PARSE) {
-			props.put("annotators", "tokenize, ssplit, pos, parse");			
-		}
-		else if (mode==ProcessingMode.NERPARSE) {
-			props.put("annotators", "tokenize, ssplit, pos, lemma, ner, parse");
-		} 
-		else {
-			assert false : "bad mode";
-		}
-	}
 	static void addTokenBasics(Map<String,Object> sent_info, CoreMap sentence) {
 		List<List<Integer>> tokenSpans = Lists.newArrayList();
 		List<String> tokenTexts = Lists.newArrayList();
@@ -211,74 +135,18 @@ public class Parse {
 		props.load(new FileInputStream(iniPropertiesFilename));
 	}
 	
-	public void setAnnotatorsFromMode() {
-		setAnnotators(props, mode);
-		//	    props.setProperty("tokenize.whitespace", "true");
-		//	    props.setProperty("ssplit.eolonly", "true");
-	}
-	
 	/** assume the properties object has been set */
 	void initializeCorenlpPipeline() {
 		pipeline = new StanfordCoreNLP(props);
 	}
 
-	public void runStdinStdout(InputFormat inputFormat) {
-		setAnnotatorsFromMode();
-
-		for (String line : BasicFileIO.STDIN_LINES) {
-			numDocs++; numChars += line.length(); System.err.print(".");
-			String[] parts = line.split("\t");
-			String docid, doctext;
-			JsonNode payload = null;
-			if (inputFormat == InputFormat.DETECT_JSON_VARIANT) {
-				payload =JsonUtil.parse(parts[parts.length-1]);
-				doctext = 
-						payload.isTextual() ? payload.asText() :
-							payload.has("text") ? payload.get("text").asText() :
-								null;
-			}
-			else if (inputFormat == InputFormat.RAW_TEXT) {
-				doctext = parts[parts.length-1];
-			}
-			else { throw new RuntimeException("wtf"); }
-
-			docid = parts.length >= 2 ? parts[0] :
-				payload !=null && payload.has("docid") ? payload.get("docid").getTextValue() :
-					"doc" + numDocs;
-
-				assert docid != null : "inconsistent 'docid' key";
-				if (doctext == null) throw new RuntimeException("Couldn't interpret JSON payload: should be string, or else object with a 'text' field.");
-
-				JsonNode outDoc = processTextDocument(doctext);
-				U.pf("%s\t%s\n", docid, JsonUtil.toJson(outDoc));
-		}
-		
-		double elapsedSec = 1.0*(System.currentTimeMillis() - startMilli) / 1000;
-		System.err.print("\n");
-		System.err.printf("%d docs, %d tokens, %.1f tok/sec, %.1f byte/sec\n", numDocs, numTokens, numTokens*1.0/elapsedSec, numChars*1.0/elapsedSec);
-	}
-	
-	String[] defaultOutputsForMode(ProcessingMode mode) {
-		if (mode==null) assert false;
-		switch(mode) {
-		case SSPLIT:
-			return new String[] {};
-		case POS:
-			return new String[]{ "pos", "lemmas" };
-		case PARSE:
-			return new String[]{ "pos", "lemmas", "parse", "deps_basic", "deps_cc" };
-		case NER:
-			return new String[]{ "pos", "lemmas", "ner", "normner" };
-		case NERPARSE:
-			return new String[]{ "pos", "lemmas", "parse", "deps_basic", "deps_cc", "ner", "normner" };
-		default:
-			return new String[] {};
-		}
-	}
-	
-	/** outputType is our system. doesn't quite 1-1 match the stanford annotators. */
-	void addAnnoToSentenceObject(Map<String,Object> sent_info, CoreMap sentence, String outputType) {
-		switch(outputType) {
+	/** annotator is a stanford corenlp notion.  */
+	void addAnnoToSentenceObject(Map<String,Object> sent_info, CoreMap sentence, String annotator) {
+		switch(annotator) {
+		case "tokens":
+			break;
+		case "cleanxml":
+			break;
 		case "ssplit":
 			break;
 		case "pos":
@@ -289,24 +157,26 @@ public class Parse {
 			break;
 		case "parse":
 			addParseTree(sent_info,sentence);
-			break;
-		case "deps_cc":
 			addDepsCC(sent_info,sentence);
+			addDepsBasic(sent_info,sentence);
 			break;
-		case "deps_basic":
+		case "depparse":
+			addDepsCC(sent_info,sentence);
 			addDepsBasic(sent_info,sentence);
 			break;
 		case "ner":
 			addTokenAnno(sent_info, sentence, "ner", NamedEntityTagAnnotation.class);
-			break;
-		case "normner":
 			addTokenAnno(sent_info, sentence, "normner", NormalizedNamedEntityTagAnnotation.class);
 			break;
 		default:
-			throw new RuntimeException("bad output type " + outputType);
+			throw new RuntimeException("don't know how to handle annotator " + annotator);
 		}
 	}
 
+	String[] annotators() {
+		String annotatorsAllstr = (String) props.get("annotators");
+		return annotatorsAllstr.trim().split(",\\s*");
+	}
 	/** runs the corenlp pipeline with all options, and returns all results as a JSON object. */
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	JsonNode processTextDocument(String doctext) {
@@ -320,8 +190,8 @@ public class Parse {
 			Map<String,Object> sent_info = Maps.newHashMap();
 			addTokenBasics(sent_info, sentence);
 			numTokens += ((List) sent_info.get("tokens")).size();
-			for (String outputType : outputTypes()) {
-				addAnnoToSentenceObject(sent_info, sentence, outputType);
+			for (String annotator : annotators()) {
+				addAnnoToSentenceObject(sent_info, sentence, annotator);
 			}
 			outSentences.add(sent_info);
 		}
@@ -335,31 +205,4 @@ public class Parse {
 	}
 
 
-	public static void main(String[] args) {
-		if (args.length < 1) {
-			usage();
-		}
-		InputFormat inputFormat = InputFormat.DETECT_JSON_VARIANT;
-
-		while (args.length > 1) {
-			String flag = args[0];
-			if (flag.equals("--raw-input")) {
-				inputFormat = InputFormat.RAW_TEXT;
-				args = Arr.subArray(args, 1, args.length);
-			}
-			else { throw new RuntimeException("bad flag: " + flag); }
-		}
-		
-		Parse runner = new Parse();
-		
-		String _mode = args[0];
-		runner.mode = modeFromString(_mode);
-		if (runner.mode==null) {
-			U.pf("Bad mode '%s'\n", _mode);
-			usage();
-		}
-		
-		runner.runStdinStdout(inputFormat);
-	}
-	
 }

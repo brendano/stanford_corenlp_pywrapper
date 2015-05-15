@@ -3,6 +3,8 @@ The pipe-based tempfile approach.
 this is kind of lame.
 """
 
+assert False, "this is broken now that we refactored the output modes out of the system."
+
 from __future__ import division
 import subprocess,tempfile,time,os,logging,re
 try:

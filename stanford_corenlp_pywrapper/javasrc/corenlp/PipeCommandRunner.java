@@ -6,6 +6,8 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 
+import javax.management.RuntimeErrorException;
+
 import org.codehaus.jackson.JsonGenerationException;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.JsonMappingException;
@@ -18,9 +20,11 @@ import util.JsonUtil;
 import util.U;
 
 /** 
+ * "PipeCommandRunner" is a bad name because actually this is always used for sockets mode now.
+ * 
  * TWO MODES OF OPERATION:
  * (1) sockets
- * (2) stdin-based pipe control, output to temp files.  this is lame.
+ * (2) stdin-based pipe control, output to temp files.  this is lame and deprecated.  maybe could be revived with named pipes or something fancier.
  * 
  * == Protocol for sockets ==
  * 
@@ -86,17 +90,6 @@ public class PipeCommandRunner {
 				runner.parser.setConfigurationFromFile(args[1]);
 				args = Arr.subArray(args, 2, args.length);
 			}
-			else if (args[0].equals("--mode")) {
-				System.err.println("[Server] Using prebaked mode type: " + args[1]);
-				runner.parser.mode = Parse.modeFromString(args[1]);
-				if (runner.parser.mode==null) throw new RuntimeException("bad mode " + args[1]);
-				runner.parser.setAnnotatorsFromMode();
-				args = Arr.subArray(args, 2, args.length);
-			}
-			else if (args[0].equals("--output-types")) {
-				runner.parser.customOutputTypes = args[1].trim().replaceAll(",+ *$","").split(",+ *| +");
-				args = Arr.subArray(args, 2, args.length);
-			}
 			else if (args[0].equals("--configdict")) {
 				JsonNode propsAsJson = JsonUtil.parse(args[1]);
 				for (String key : Lists.newArrayList(propsAsJson.getFieldNames())) {
@@ -105,9 +98,11 @@ public class PipeCommandRunner {
 				}
 				args = Arr.subArray(args, 2, args.length);
 			}
+			else {
+				throw new RuntimeException("don't know option: " + args[0]);
+			}
 		}
 
-		System.err.println("[Server] Using output types: " + Lists.newArrayList(runner.parser.outputTypes()));
 		runner.parser.initializeCorenlpPipeline();
 		
 		if (doServer) {
@@ -119,6 +114,7 @@ public class PipeCommandRunner {
 		}
 	}
 	
+	/** only for the deprecated pipe approach */
 	void stdinLoop() throws Exception {
 		BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
 		String line;
