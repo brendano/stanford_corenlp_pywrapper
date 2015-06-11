@@ -44,10 +44,19 @@ Note that you'll have to edit them to specify the jar paths as described below.
 The basic arguments to open a server are 
     (1) the pipeline mode, or the annotator pipeline, and
     (2) the paths to the CoreNLP jar files, for the java classpath.
-    
+
+The pipeline modes are just quick shortcuts for some pipeline configurations we commonly use.  They are defined near the top of `stanford_corenlp_pywrapper/sockwrap.py` and include
+
+  * `ssplit`: tokenization and sentence splitting (included in all subsequent ones)
+  * `pos`: POS (and lemmas)
+  * `ner`: POS and NER (and lemmas)
+  * `parse`: fairly basic parsing with POS, lemmas, trees, dependencies
+  * `nerparse`: parsing with NER, POS, lemmas, depenencies.
+  * `coref`: Coreference, including constituent parsing.
+
 Here we assume the program has been installed using `pip install`.  You will
 have to change `corenlp_jars` to where you have them on your system.
-Here's how to initialize the pipeline.
+Here's how to initialize the pipeline with the `pos` mode:
 
 ```
 >>> from stanford_corenlp_pywrapper import sockwrap

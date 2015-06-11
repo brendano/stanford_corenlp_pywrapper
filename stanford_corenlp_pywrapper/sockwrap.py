@@ -13,21 +13,23 @@ except ImportError:
 # configdict with:
 #  'parse.model': 'edu/stanford/nlp/models/srparser/englishSR.ser.gz'
 
-MODES = {
+MODES_items = [
 
-'ssplit':  {'annotators': "tokenize, ssplit",
-    'description': "tokenization and sentence splitting (included in all subsequent ones)", },
-'pos':     {'annotators':"tokenize, ssplit, pos, lemma",
-    'description':"POS (and lemmas)",},
-'ner':     {'annotators':"tokenize, ssplit, pos, lemma, ner, entitymentions",
-    'description':"POS and NER (and lemmas)",},
-'parse':    {'annotators':"tokenize, ssplit, pos, lemma, parse",
-    'description':"fairly basic parsing with POS, lemmas, trees, dependencies",},
-'nerparse': {'annotators':"tokenize, ssplit, pos, lemma, ner, entitymentions, parse",
-    'description':"parsing with NER, POS, lemmas, depenencies."},
-'coref': {'annotators':"tokenize, ssplit, pos, lemma, ner, entitymentions, parse, dcoref",
-    'description':"Coreference, including constituent parsing."}
-}
+('ssplit',  {'annotators': "tokenize, ssplit",
+    'description': "tokenization and sentence splitting (included in all subsequent ones)", }),
+('pos',     {'annotators':"tokenize, ssplit, pos, lemma",
+    'description':"POS (and lemmas)",}),
+('ner',     {'annotators':"tokenize, ssplit, pos, lemma, ner, entitymentions",
+    'description':"POS and NER (and lemmas)",}),
+('parse',    {'annotators':"tokenize, ssplit, pos, lemma, parse",
+    'description':"fairly basic parsing with POS, lemmas, trees, dependencies",}),
+('nerparse', {'annotators':"tokenize, ssplit, pos, lemma, ner, entitymentions, parse",
+    'description':"parsing with NER, POS, lemmas, depenencies."}),
+('coref', {'annotators':"tokenize, ssplit, pos, lemma, ner, entitymentions, parse, dcoref",
+    'description':"Coreference, including constituent parsing."})
+]
+
+MODES = dict(MODES_items)
 
 logging.basicConfig()  # wtf, why we have to call this?
 LOG = logging.getLogger("StanfordSocketWrap")
@@ -282,3 +284,9 @@ def assert_no_java(msg=""):
 #
 #     p.kill_proc_if_running()
 #     assert_no_java()
+
+if __name__=='__main__':
+    import sys
+    if sys.argv[1]=='modes':
+        for mode,d in MODES_items:
+            print "  * `%s`: %s" % (mode, d['description'])
