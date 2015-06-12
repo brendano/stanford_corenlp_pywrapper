@@ -125,7 +125,9 @@ have to be changed for your system.
     corenlp_jars=["/path/to/stanford-corenlp-full-2015-04-20/*", "/path/to/stanford-srparser-2014-10-23-models.jar"])
 ```
 
-Another example: coreference.  All the other annotators only put things into the top-level `sentences` attribute for the document.  But for coreference, you'll get data in `entities`.  Here, there are 3 entities. The first is "Fred", the second is "her", and the third is the telescope with two mentions ("telescope" and "It").
+Another example: coreference. This tool does not annotate [coreference](http://nlp.stanford.edu/projects/coref.shtml "coreference") in the same way that it annotates other linguistic features. Where the other kinds of annotation (for instance, part of speech tagging) are collected in the top-level `sentences` attribute of the json output, coreference annotations get collected in the attribute, `entities`.  
+
+In the example below, there are 3 entities in the two sentences. The first is "Fred", the second is "her", and the third is the telescope. The telescope is mentioned twice, ("telescope" and "It"), so there are two mention objects in the json. "It" and "telescope" are said to co-refer.
 
 ```
 >>> proc = sockwrap.SockWrap("coref")
