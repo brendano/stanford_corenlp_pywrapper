@@ -20,11 +20,9 @@ import util.JsonUtil;
 import util.U;
 
 /** 
- * TWO MODES OF OPERATION:
- * (1) sockets
- * (2) stdin-based pipe control, output to temp files.  this is lame and deprecated.  maybe could be revived with named pipes or something fancier.
+ * == Protocol ==
  * 
- * == Protocol for sockets ==
+ * this can go either over a socket or over stdin for the command, named pipe for ouput.  (well the output is jus a filename but presumably a named pipe makes the most sense)
  * 
  * Input is a single line with two tab-separated fields, ending with a newline:
  *     PARSEDOC \t "Hello world." \n
@@ -36,51 +34,36 @@ import util.U;
  * 2. a big-ass JSON object of that length.
  * 
  * For example:
- *  $ java -cp [blablabla] corenlp.PipeCommandRunner --server 1234 pos
+ *  $ java -cp [blablabla] corenlp.SocketServer --server 1234 pos
  *  $ echo -e 'PARSEDOC\t"hello world."' | nc localhost 1234 | xxd
  *  The first few xxd lines are:
 0000000: 0000 0000 0000 00b3 7b22 7365 6e74 656e  ........{"senten
 0000010: 6365 7322 3a5b 7b22 706f 7322 3a5b 2255  ces":[{"pos":["U
 0000020: 4822 2c22 4e4e 222c 222e 225d 2c22 746f  H","NN","."],"to
-
- * == Protocol for pipe/tempfiles ==
- * 
- * intended to have stdin be a pipe, and not do anything on stdout. 
- * caller has to be smart about checking for the output file. sigh.
- * 
- * THE CALLER MUST FLUSH THE PIPE AFTER WRITING TO IT!
- * BECAUSE WE USE A BUFFERED READER HERE!
- * 
- * protocol:
- * 
- * STARTUP: once this program is ready to receive commands, it will create the file requested
- * and write a \0 NULL to it.
- * 
- * CLIENT: give one-line parsing command, specifying an output file. flush it.
- * 
- * THIS PROGRAM: writes to the output file:
- *   (1) the result as one big-ass JSON object
- *   (2) the NULL \0 character.
- *   
- *  so when this program is truly done, the last byte of the output file is \0.
- *  the client is responsible for waiting on this, i guess with a busy wait.
- *  yes, sockets seem like a better system, no?
  */
 public class SocketServer {
 	JsonPipeline parser;
-	
+	boolean doSocketServer = false;
+	boolean doNamedPipes = false;
+
 	/** only used for server mode */
 	int port = -1;
+	/** only used for named pipe mode */
+	String outpipeFilename;
 	
 	public static void main(String[] args) throws Exception {
-		boolean doServer = false;
 		SocketServer runner = new SocketServer();
 		runner.parser = new JsonPipeline();
 
 		while (args.length > 1) {
 			if (args[0].equals("--server")) {
-				doServer = true;
+				runner.doSocketServer = true;
 				runner.port = Integer.parseInt(args[1]);
+				args = Arr.subArray(args, 2, args.length);
+			}
+			else if (args[0].equals("--outpipe")) {
+				runner.doNamedPipes = true;
+				runner.outpipeFilename = args[1];
 				args = Arr.subArray(args, 2, args.length);
 			}
 			else if (args[0].equals("--configfile")) {
@@ -103,33 +86,18 @@ public class SocketServer {
 
 		runner.parser.initializeCorenlpPipeline();
 		
-		if (doServer) {
+		if (runner.doSocketServer) {
 			runner.socketServerLoop();
+		} else if (runner.doNamedPipes) {
+			assert false : "not implemented";
+//			runner.namedpipeLoop();
 		} else {
-			String reportReadyTempfile = args[0];
-			BasicFileIO.writeFile("\0", reportReadyTempfile);
-			runner.stdinLoop();
+			throw new RuntimeException("no running mode selected");
 		}
 	}
 	
-	/** only for the deprecated pipe approach */
-	void stdinLoop() throws Exception {
-		BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
-		String line;
-		while ( (line=reader.readLine()) != null) {
-			String[] parts = line.split("\t");
-			String command = parts[0];
-			String outputfile = parts[1];
-			String inputPayload = parts[2];
-
-			JsonNode result = runCommand(command, inputPayload);
-			
-			Writer out = new BufferedWriter(new OutputStreamWriter(
-				    new FileOutputStream(outputfile), "UTF-8"));
-			out.write(result.toString());
-			out.write('\0');
-			out.close();
-		}
+	void namedpipeLoop() throws Exception {
+		
 	}
 	
 	JsonNode runCommand(String command, String inputPayload) throws Exception {
@@ -147,67 +115,8 @@ public class SocketServer {
 		}
 	}
 	
-	/****** socket stuff ******/
-
-	ServerSocket parseServer = null;
-	
-	void socketServerLoop() throws JsonGenerationException, JsonMappingException, IOException {
-		// declare a server socket and a client socket for the server
-		// declare an input and an output stream
-		BufferedReader br;
-		Socket clientSocket = null;
-		String commandstr=null;
-		
-		initializeServer();
-
-		// Create a socket object from the ServerSocket to listen and accept
-		// connections.
-		// Open input and output streams
-
-		while (true) {
-//			System.err.println("[Server] Waiting for Connection on Port: "+port);
-			commandstr = null;
-			try {
-				clientSocket = getSocketConnection();
-				br = new BufferedReader(new InputStreamReader(new DataInputStream(clientSocket.getInputStream())));
-				commandstr = br.readLine();
-
-			} catch (IOException e) {
-				e.printStackTrace();
-				continue;
-			}
-
-			if (commandstr == null) {
-				continue;
-			}
-
-			String[] parts = commandstr.split("\t");
-
-			if (parts.length != 2) {
-				continue;
-			}
-
-			String command = parts[0];
-			String payload = parts[1];
-			JsonNode result = null;
-			try {
-				result = runCommand(command,payload);
-			} catch (Exception e) {
-				e.printStackTrace();
-				continue;
-			}
-			// TODO: undefined behavior if >2GB return value ... which feels pretty possible.
-			// using a long for length here for future-proofing,
-			// but it doesn't help now since byte arrays have max length ~2e9 (Integer.MAX_VALUE or so)
-			byte[] resultToReturn = JsonUtil.om.writeValueAsBytes(result);
-			long resultLength = (long) resultToReturn.length;
-			
-			ByteBuffer bb = ByteBuffer.allocate(8);
-			bb.putLong(0, resultLength);
-			clientSocket.getOutputStream().write(bb.array());
-			clientSocket.getOutputStream().write(resultToReturn);
-			
-			if (parser.numDocs>0 && (
+	void checkTimings() {
+		if (parser.numDocs>0 && (
 				parser.numDocs <= 10 || 
 				(parser.numDocs <= 1000 && (parser.numDocs % 100 == 0)) ||
 				(parser.numDocs % 1000 == 0)
@@ -221,11 +130,73 @@ public class SocketServer {
 						parser.numTokens*1.0 / elapsed
 						);
 			}
+	}
+	
+	/****** socket stuff ******/
+
+	ServerSocket parseServer = null;
+	
+	JsonNode parseAndRunCommand(String commandstr) {
+		if (commandstr == null) {
+			return null;
+		}
+		String[] parts = commandstr.split("\t");
+		if (parts.length != 2) {
+			return null;
+		}
+		String command = parts[0];
+		String payload = parts[1];
+		JsonNode result = null;
+		try {
+			result = runCommand(command,payload);
+		} catch (Exception e) {
+			e.printStackTrace();
+			return null;
+		}
+		return result;
+	}
+	
+	void writeResultToStream(JsonNode result, OutputStream outstream) throws IOException {
+		// TODO: undefined behavior if >2GB return value ... which feels pretty possible.
+		// using a long for length here for future-proofing,
+		// but it doesn't help now since byte arrays have max length ~2e9 (Integer.MAX_VALUE or so)
+		byte[] resultToReturn = JsonUtil.om.writeValueAsBytes(result);
+		long resultLength = (long) resultToReturn.length;
+		
+		ByteBuffer bb = ByteBuffer.allocate(8);
+		bb.putLong(0, resultLength);
+		outstream.write(bb.array());
+		outstream.write(resultToReturn);
+	}
+	
+	void socketServerLoop() throws JsonGenerationException, JsonMappingException, IOException {
+		// declare a server socket and a client socket for the server
+		// declare an input and an output stream
+		BufferedReader br;
+		Socket clientSocket = null;
+		String commandstr=null;
+		
+		initializeSocketServer();
+
+		while (true) {
+//			System.err.println("[Server] Waiting for Connection on Port: "+port);
+			commandstr = null;
+			try {
+				clientSocket = getSocketConnection();
+				br = new BufferedReader(new InputStreamReader(new DataInputStream(clientSocket.getInputStream())));
+				commandstr = br.readLine();
+			} catch (IOException e) {
+				e.printStackTrace();
+				continue;
+			}
+			JsonNode result = parseAndRunCommand(commandstr);
+			writeResultToStream(result, clientSocket.getOutputStream());
+			checkTimings();
 		}
 //		parseServer.close();
 	}
 	
-	void initializeServer() {
+	void initializeSocketServer() {
 		try {
 			parseServer = new ServerSocket(port);
 			System.err.println("[Server] Started socket server on port "+port);
