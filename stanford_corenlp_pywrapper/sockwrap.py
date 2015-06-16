@@ -38,19 +38,19 @@ LOG.setLevel("INFO")
 
 COMMAND = """
 exec {JAVA} -Xmx{XMX_AMOUNT} -XX:ParallelGCThreads=1 -cp '{classpath}'
-    corenlp.SocketServer --server {server_port} {more_config}"""
+    corenlp.SocketServer {comm_info} {more_config}"""
 
 JAVA = "java"
 XMX_AMOUNT = "4g"
 
 PARSEDOC_TIMEOUT_SEC = 60 * 5
-STARTUP_BUSY_WAIT_INTERVAL_SEC = 5.0
+STARTUP_BUSY_WAIT_INTERVAL_SEC = 1.0
 
 #arg for mkstemp(dir=), so if None it defaults to somewhere
 TEMP_DIR = None
 
 
-def command(mode=None, configfile=None, configdict=None, **kwargs):
+def command(mode=None, configfile=None, configdict=None, comm_mode='SOCKET', **kwargs):
     d = {}
     d.update(globals())
     d.update(**kwargs)
@@ -73,6 +73,11 @@ def command(mode=None, configfile=None, configdict=None, **kwargs):
         more_config += " --configdict '{}'".format(j)
     d['more_config'] = more_config
 
+    if comm_mode=='SOCKET':
+        d['comm_info'] = "--server {server_port}".format(**d)
+    elif comm_mode=='PIPE':
+        d['comm_info'] = "--outpipe {outpipe}".format(**d)
+
     return COMMAND.format(**d).replace("\n", " ")
 
 
@@ -80,9 +85,12 @@ class SubprocessCrashed(Exception):
     pass
 
 
-class SockWrap:
+class CoreNLP:
 
-    def __init__(self, mode=None, server_port=12340,
+    def __init__(self, mode=None, 
+            server_port=12340,
+            comm_mode='SOCKET',  # SOCKET or PIPE
+            outpipe=None,
             configfile=None, configdict=None,
             corenlp_jars=(
                 "/home/sw/corenlp/stanford-corenlp-full-2015-04-20/*",
@@ -112,6 +120,10 @@ class SockWrap:
         self.server_port = server_port
         self.configfile = configfile
         self.configdict = configdict
+        self.comm_mode = comm_mode
+
+        if self.comm_mode=='PIPE':
+            assert outpipe is not None, "need outpipe filename TODO make automatic"
 
         assert isinstance(corenlp_jars, (list,tuple))
 
@@ -124,6 +136,7 @@ class SockWrap:
         jars = [os.path.join(local_libdir, "*")]
         jars += corenlp_jars
         self.classpath = ':'.join(jars)
+        self.classpath += ":../bin:bin"  ## for eclipse java dev
 
         # LOG.info("CLASSPATH: " + self.classpath)
 
@@ -139,11 +152,16 @@ class SockWrap:
     def start_server(self):
         self.kill_proc_if_running()
         cmd = command(**self.__dict__)
-        LOG.info("Starting pipe subprocess, and waiting for signal it's ready, with command: %s" % cmd)
+        LOG.info("Starting java subprocess, and waiting for signal it's ready, with command: %s" % cmd)
         self.proc = subprocess.Popen(cmd, shell=True)
         time.sleep(STARTUP_BUSY_WAIT_INTERVAL_SEC)
-        sock = self.get_socket(num_retries=100, retry_interval=STARTUP_BUSY_WAIT_INTERVAL_SEC)
-        sock.close()
+
+        if self.comm_mode=='SOCKET':
+            sock = self.get_socket(num_retries=100, retry_interval=STARTUP_BUSY_WAIT_INTERVAL_SEC)
+            sock.close()
+        elif self.comm_mode=='PIPE':
+            assert False
+
         while True:
             try:
                 ret = self.send_command_and_parse_result('PING\t""', 2)
@@ -221,10 +239,14 @@ class SockWrap:
             # the process now just in case?
 
     def send_command_and_get_string_result(self, cmd, timeout):
-        sock = self.get_socket(num_retries=100)
-        sock.settimeout(timeout)
-        sock.sendall(cmd + "\n")
-        size_info_str = sock.recv(8)
+        if self.comm_mode == 'SOCKET':
+            sock = self.get_socket(num_retries=100)
+            sock.settimeout(timeout)
+            sock.sendall(cmd + "\n")
+            size_info_str = sock.recv(8)
+        elif self.comm_mode == 'PIPE':
+            assert False
+
         # java "long" is 8 bytes, which python struct calls "long long".
         # java default byte ordering is big-endian.
         size_info = struct.unpack('>Q', size_info_str)[0]
@@ -233,11 +255,14 @@ class SockWrap:
         chunks = []
         curlen = lambda: sum(len(x) for x in chunks)
         while True:
-            data = sock.recv(size_info - curlen())
+            if self.comm_mode == 'SOCKET':
+                data = sock.recv(size_info - curlen())
+            elif self.comm_mode == 'PIPE':
+                assert False
             chunks.append(data)
             if curlen() >= size_info: break
             if len(chunks) > 1000:
-                LOG.warning("Incomplete value from socket")
+                LOG.warning("Incomplete value from server")
                 return None
             time.sleep(0.01)
         return ''.join(chunks)
@@ -246,7 +271,7 @@ class SockWrap:
 def test_simple():
     assert_no_java("no java when starting")
 
-    p = SockWrap("ssplit")
+    p = CoreNLP("ssplit")
     ret = p.parse_doc("Hello world.")
     print ret
     assert len(ret['sentences']) == 1
@@ -258,7 +283,7 @@ def test_simple():
 def test_paths():
     import pytest
     with pytest.raises(AssertionError):
-        SockWrap("ssplit", corenlp_jars=["/asdfadsf/asdfasdf"])
+        CoreNLP("ssplit", corenlp_jars=["/asdfadsf/asdfasdf"])
 
 def assert_no_java(msg=""):
     ps_output = os.popen("ps wux").readlines()
@@ -269,7 +294,7 @@ def assert_no_java(msg=""):
 # def test_doctimeout():
 #     assert_no_java("no java when starting")
 #
-#     p = SockWrap("pos")
+#     p = CoreNLP("pos")
 #     ret = p.parse_doc(open("allbrown.txt").read(), 0.5)
 #     assert ret is None
 #     p.kill_proc_if_running()
@@ -277,7 +302,7 @@ def assert_no_java(msg=""):
 #
 # def test_crash():
 #     assert_no_java("no java when starting")
-#     p = SockWrap("ssplit")
+#     p = CoreNLP("ssplit")
 #     p.crash()
 #     ret = p.parse_doc("Hello world.")
 #     assert len(ret['sentences'])==1
