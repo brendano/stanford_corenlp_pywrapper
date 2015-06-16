@@ -32,7 +32,7 @@ MODES_items = [
 MODES = dict(MODES_items)
 
 logging.basicConfig()  # wtf, why we have to call this?
-LOG = logging.getLogger("StanfordSocketWrap")
+LOG = logging.getLogger("CoreNLP_PyWrapper")
 LOG.setLevel("INFO")
 # LOG.setLevel("DEBUG")
 
@@ -176,6 +176,9 @@ class CoreNLP:
             self.outpipe_fp = open(self.outpipe, 'r')
 
         while True:
+            # This loop is for if you have timeouts for the socket connection
+            # The pipe system doesn't have timeouts, so this should run only
+            # once in that case.
             try:
                 ret = self.send_command_and_parse_result('PING\t""', 2)
                 if ret is None:

@@ -63,9 +63,8 @@ public class SocketServer {
 	boolean doSocketServer = false;
 	boolean doNamedPipes = false;
 
-	/** only used for server mode */
+	ServerSocket parseServer = null;
 	int port = -1;
-	/** only used for named pipe mode */
 	String outpipeFilename;
 	
 	public static void main(String[] args) throws Exception {
@@ -84,7 +83,7 @@ public class SocketServer {
 				args = Arr.subArray(args, 2, args.length);
 			}
 			else if (args[0].equals("--configfile")) {
-				System.err.println("[Server] Using CoreNLP configuration file: " + args[1]);
+				log("Using CoreNLP configuration file: " + args[1]);
 				runner.parser.setConfigurationFromFile(args[1]);
 				args = Arr.subArray(args, 2, args.length);
 			}
@@ -101,7 +100,7 @@ public class SocketServer {
 			}
 		}
 		runner.parser.initializeCorenlpPipeline();
-		System.err.println("[Server] corenlp pipeline initialized.");
+		log("CoreNLP pipeline initialized.");
 		
 		if (runner.doSocketServer) {
 			runner.socketServerLoop();
@@ -113,6 +112,10 @@ public class SocketServer {
 	}
 	
 	/****** generic functions for both socket and pipe operation ******/
+	
+	static void log(String message) {
+		System.err.println("INFO:CoreNLP_JavaServer: " + message);
+	}
 
 	JsonNode runCommand(String command, String inputPayload) throws Exception {
 		switch (command) {
@@ -136,19 +139,17 @@ public class SocketServer {
 				(parser.numDocs % 1000 == 0)
 				)) {
 				double elapsed = (double) (System.currentTimeMillis() - parser.startMilli) / 1000.0;
-				System.err.printf("[Server] INPUT: %d documents, %d characters, %d tokens, %.1f char/doc, %.1f tok/doc RATES: %.3f doc/sec, %.1f tok/sec\n",
+				log(String.format("INPUT: %d documents, %d characters, %d tokens, %.1f char/doc, %.1f tok/doc RATES: %.3f doc/sec, %.1f tok/sec\n",
 						parser.numDocs, parser.numChars, parser.numTokens,
 						parser.numChars*1.0 / parser.numDocs,
 						parser.numTokens*1.0 / parser.numDocs,
 						parser.numDocs*1.0 / elapsed,
 						parser.numTokens*1.0 / elapsed
-						);
+						));
 			}
 	}
 	
 
-	ServerSocket parseServer = null;
-	
 	JsonNode parseAndRunCommand(String commandstr) {
 		if (commandstr == null) {
 			return null;
@@ -187,7 +188,7 @@ public class SocketServer {
 	void initializeSocketServer() {
 		try {
 			parseServer = new ServerSocket(port);
-			System.err.println("[Server] Started socket server on port "+port);
+			log("Started socket server on port "+port);
 		} catch (IOException e1) {
 			e1.printStackTrace();
 			System.exit(-1);
@@ -212,7 +213,7 @@ public class SocketServer {
 		initializeSocketServer();
 
 		while (true) {
-//			System.err.println("[Server] Waiting for Connection on Port: "+port);
+//			log("Waiting for Connection on Port: "+port);
 			commandstr = null;
 			try {
 				clientSocket = getSocketConnection();
@@ -235,11 +236,10 @@ public class SocketServer {
 	void namedpipeLoop() throws JsonGenerationException, JsonMappingException, IOException {
 		BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, "UTF-8"));
 		String inputline;
-		System.err.println("[Server] Opening output stream");
 		BufferedOutputStream out = new BufferedOutputStream(
 				new FileOutputStream(outpipeFilename, true));
 //		OutputStream out = new FileOutputStream(outpipeFilename, true);
-		System.err.println("[Server] Waiting for commands on stdin");
+		log("Waiting for commands on stdin");
 		while ( (inputline=reader.readLine()) != null) {
 			JsonNode result = parseAndRunCommand(inputline);
 			writeResultToStream(result, out);

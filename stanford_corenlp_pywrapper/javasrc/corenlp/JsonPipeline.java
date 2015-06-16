@@ -50,8 +50,6 @@ import edu.stanford.nlp.util.CoreMap;
  * A wrapper around a CoreNLP Pipeline object that knows how to turn output annotations into JSON,
  * with 0-oriented indexing conventions.
  * 
- *  TODO: no coref yet, will be an 'entities' key in the document's json object.
- *  
  *  implementation: needs to mirror edu/stanford/nlp/pipeline/XMLOutputter.java somewhat
  */
 public class JsonPipeline {
