@@ -1,27 +1,20 @@
-This is a Python wrapper for the [Stanford CoreNLP][1] library, allowing
-sentence splitting, POS/NER, temporal expression, constituent and dependency
-parsing, and coreference annotations. It runs the Java software as a subprocess
-and communicates over sockets.  This library handles timeouts and some process
-management (restarting the server if it seems to have crashed).
+This is a Python wrapper for the [Stanford CoreNLP][c] library for Unix (Mac,
+Linux), allowing sentence splitting, POS/NER, temporal expression, constituent
+and dependency parsing, and coreference annotations. It runs the Java software
+as a subprocess and communicates with named pipes or sockets.  It can also be
+used to get a JSON-formatted version of the NLP annotations.
 
 Alternatives you may want to consider:
 
   * https://bitbucket.org/torotoki/corenlp-python
-  * https://github.com/dasmith/stanford-corenlp-python
-  * http://py4j.sourceforge.net/
+  * Many others listed [here][c]
 
-This wrapper uses whatever the CoreNLP default settings are, but they can be
-overriden with configuration (from a file or a dictionary).
-The included `sample.ini` configuration file, for example, runs with the
-[shift-reduce][2] parser (and requires the appropriate model file to be
-downloaded).
-
-[1]: http://nlp.stanford.edu/software/corenlp.shtml
-[2]: http://nlp.stanford.edu/software/srparser.shtml
+[c]: http://nlp.stanford.edu/software/corenlp.shtml
 
 ## Install
 
-If you like, you can install it with something like this:
+You need to have CoreNLP already downloaded.
+If you want to, you can install this software with something like:
 
 ```
 git clone https://github.com/brendano/stanford_corenlp_pywrapper
@@ -29,23 +22,26 @@ cd stanford_corenlp_pywrapper
 pip install .
 ```
 
-Java version 8 is required to be installed (version 7 may work with older
-CoreNLP versions).  We have used the wrapper most recently with CoreNLP 3.5.2,
-and have used it with older versions as well.
+Or you can just put the `stanford_corenlp_pywrapper` subdirectory into your
+project (or use virtualenv or whatever).
+
+The Java required version is whatever CoreNLP needs, perhaps version 8.
 
 ## Commandline usage
 
-See `proc_text_files.py` for an example of processing text files,
-or `proc_doc_lines.py` for an alternative input/output format.
-Note that you'll have to edit them to specify the jar paths as described below.
+See `proc_text_files.py` for an example of processing text files, or
+`proc_doc_lines.py` for an alternative format. Note that you'll have to edit
+them to specify the jar paths as described below.
 
 ## Usage from Python
 
 The basic arguments to open a server are 
-    (1) the pipeline mode, or the annotator pipeline, and
-    (2) the paths to the CoreNLP jar files, for the java classpath.
+    (1) the pipeline mode (or alternatively, the annotator pipeline), and
+    (2) the path to the CoreNLP jar files (passed on to the Java classpath)
 
-The pipeline modes are just quick shortcuts for some pipeline configurations we commonly use.  They are defined near the top of `stanford_corenlp_pywrapper/sockwrap.py` and include
+The pipeline modes are just quick shortcuts for some pipeline configurations we
+commonly use.  They are defined near the top of
+`stanford_corenlp_pywrapper/sockwrap.py` and include
 
   * `ssplit`: tokenization and sentence splitting (included in all subsequent ones)
   * `pos`: POS (and lemmas)
@@ -59,25 +55,26 @@ have to change `corenlp_jars` to where you have them on your system.
 Here's how to initialize the pipeline with the `pos` mode:
 
 ```
->>> from stanford_corenlp_pywrapper import sockwrap
->>> proc = sockwrap.SockWrap("pos", corenlp_jars=["/home/sw/corenlp/stanford-corenlp-full-2015-04-20/*"])
+>>> from stanford_corenlp_pywrapper import CoreNLP
+>>> proc = CoreNLP("pos", corenlp_jars=["/home/sw/corenlp/stanford-corenlp-full-2015-04-20/*"])
+```
 
-INFO:StanfordSocketWrap:mode given as 'pos' so setting annotators: tokenize, ssplit, pos, lemma
-INFO:StanfordSocketWrap:Starting pipe subprocess, and waiting for signal it's ready, with command:  exec java -Xmx4g -cp '/Users/brendano/sw/nlp/stanford_corenlp_pywrapper/stanford_corenlp_pywrapper/lib/*:/home/sw/corenlp/stanford-corenlp-full-2015-04-20/*'     corenlp.SocketServer --server 12340  --configdict '{"annotators":"tokenize, ssplit, pos, lemma"}'
+If things are working there will be lots of messages looking something like:
+
+```
+INFO:CoreNLP_PyWrapper:mode given as 'ssplit' so setting annotators: tokenize, ssplit
+INFO:CoreNLP_PyWrapper:Starting java subprocess, and waiting for signal it's ready, with command:  exec java -Xmx4g -XX:ParallelGCThreads=1 -cp '/Users/brendano/sw/nlp/stanford_corenlp_pywrapper/stanford_corenlp_pywrapper/lib/*:/home/sw/corenlp/stanford-corenlp-full-2015-04-20/*'     corenlp.SocketServer --outpipe /tmp/corenlp_pywrap_pipe_pypid=96700_time=1434492109.34  --configdict '{"annotators":"tokenize, ssplit"}'
 Adding annotator tokenize
 TokenizerAnnotator: No tokenizer type provided. Defaulting to PTBTokenizer.
 Adding annotator ssplit
-Adding annotator pos
-Reading POS tagger model from edu/stanford/nlp/models/pos-tagger/english-left3words/english-left3words-distsim.tagger ... done [1.2 sec].
-Adding annotator lemma
-[Server] Started socket server on port 12340
-INFO:StanfordSocketWrap:Successful ping. The server has started.
-INFO:StanfordSocketWrap:Subprocess is ready.
+INFO:CoreNLP_JavaServer: CoreNLP pipeline initialized.
+INFO:CoreNLP_JavaServer: Waiting for commands on stdin
+INFO:CoreNLP_PyWrapper:Successful ping. The server has started.
+INFO:CoreNLP_PyWrapper:Subprocess is ready.
 ```
 
 Now it's ready to parse documents.  You give it a string and it returns
-JSON-safe data structures (in fact, the python<->java communication is a JSON
-protocol, and you can pass `raw=True` to get it without deserializing it).
+JSON-safe data structures: 
 
 ```
 >>> proc.parse_doc("hello world. how are you?")
@@ -115,22 +112,32 @@ Or use an external configuration file (of the same sort the original CoreNLP com
 
 The `annotators` configuration option is explained more on the CoreNLP webpage.
 
-Another example: using the shift-reduce constituent parser.  The jar paths will
-have to be changed for your system.
+Another example: using the [shift-reduce][sr] constituent parser.  The jar
+paths will have to be changed for your system.
 
 ```
->>> p = sockwrap.SockWrap(configdict={
-    'annotators':"tokenize,ssplit,pos,lemma,parse",
+>>> p = CoreNLP(configdict={
+    'annotators': "tokenize,ssplit,pos,lemma,parse",
     'parse.model': 'edu/stanford/nlp/models/srparser/englishSR.ser.gz'},  
     corenlp_jars=["/path/to/stanford-corenlp-full-2015-04-20/*", "/path/to/stanford-srparser-2014-10-23-models.jar"])
 ```
 
-Another example: coreference. This tool does not annotate [coreference](http://nlp.stanford.edu/projects/coref.shtml "coreference") in the same way that it annotates other linguistic features. Where the other kinds of annotation (for instance, part of speech tagging) are collected in the top-level `sentences` attribute of the json output, coreference annotations get collected in the attribute, `entities`.  
+[sr]: http://nlp.stanford.edu/software/srparser.shtml
 
-In the example below, there are 3 entities in the two sentences. The first is "Fred", the second is "her", and the third is the telescope. The telescope is mentioned twice, ("telescope" and "It"), so there are two mention objects in the json. "It" and "telescope" are said to co-refer.
+Another example: coreference. This tool does not annotate
+[coreference](http://nlp.stanford.edu/projects/coref.shtml "coreference") in
+the same way that it annotates other linguistic features. Where the other kinds
+of annotation (for instance, part of speech tagging) are collected in the
+top-level `sentences` attribute of the json output, coreference annotations get
+collected in the attribute, `entities`.  
+
+In the example below, there are 3 entities in the two sentences. The first is
+"Fred", the second is "her", and the third is the telescope. The telescope is
+mentioned twice, ("telescope" and "It"), so there are two mention objects in
+the json. "It" and "telescope" are said to co-refer.
 
 ```
->>> proc = sockwrap.SockWrap("coref")
+>>> proc = CoreNLP("coref")
 >>> proc.parse_doc("Fred saw her through a telescope. It was broken.")['entities']
 [{u'entityid': 1,
   u'mentions': [{u'animacy': u'ANIMATE',
@@ -172,30 +179,50 @@ In the example below, there are 3 entities in the two sentences. The first is "F
                  u'tokspan_in_sentence': [0, 1]}]}]
 ```
 
-
 ## Notes
 
 * We always use 0-indexed numbering conventions for token, sentence, and
   character indexes.  Spans are always inclusive-exclusive pairs, just like
   Python slicing.
 
-* Some of the output messages are stderr from the CoreNLP subprocess.
-  Everything starting with `INFO:` or `WARNING:` is from the Python logging
-  system, in the parent process.  Messages starting with `[Server]` are from the
-  Java subprocess, in our server code (but not from Stanford CoreNLP).
+* You can get the raw unserialized JSON with the option `raw=True`: e.g.,
+    `parse_doc("Hello world.", raw=True)`.  The python<->java communication is
+    based on JSON and this just hands it back without deserializing it.  In
+    fact you can run the Java code as a standalone commandline program to just
+    produce the JSON format. This can be helpful for storing parses from large
+    corpora. (Even though this format is pretty repetitive, it is much more
+    compact than CoreNLP's XML format. Though of course protobuf or something
+    should be better.)
 
-* To use a different CoreNLP version, make sure the `corenlp_jars` 
-    parameter is correct. If a future CoreNLP breaks binary (Java API)
-    compatibility, you'll have to edit the Java server code and re-compile
-    with `./build.sh`.
+* To use a different CoreNLP version, just update `corenlp_jars` 
+    to what you want. If a future CoreNLP breaks binary (Java API)
+    compatibility, you'll have to edit the Java server code and re-compile with
+    `./build.sh`.
 
-* If you want to run multiple instances on the same machine, make sure each
-  SockWrap instance has a unique port number.  (Future todo: we should
-  implement a different mechanism that doesn't require port numbers.)
+* To change the Java settings (such as the memory limit) you currently need to
+    edit the Python source.
+
+* Output messages (on standard error) that start with `INFO:` or `WARNING:` are
+    from our code, while everything else is from CoreNLP.
+
+* Only works on Unix (Linux and Mac).  Does not currently work on Windows.
+
+* If you want to know the latest version of CoreNLP this has been tested with,
+    look at the paths in the default options in the Python source code.
+
+* Implementation: By default, the inter-process communication is through named
+    pipes, established with Unix calls. As an alternative, there is also
+    a socket server mode (`comm_mode='SOCKET'`) which might be more robust, but
+    requires using a port number.  It's not much of a server since the python
+    code assumes it's the only process communicating with it.
+
+* Question: do [JPype](http://jpype.sourceforge.net/) or
+    [Py4J](http://py4j.sourceforge.net/) work well?  They seemed complex which
+    is why we wrote our own IPC mechanism.  But if there's a better alternative, no need.
 
 ## Testing
 
-There are some pytest-style tests, though they're incomplete. Run:
+There's a tiny amount of pytest-style tests.
 
     py.test -v sockwrap.py
 
