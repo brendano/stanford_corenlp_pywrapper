@@ -33,13 +33,30 @@ import util.U;
  * 1. big-endian 8-byte integer describing how many bytes the reponse will be.
  * 2. a big-ass JSON object of that length.
  * 
- * For example:
- *  $ java -cp [blablabla] corenlp.SocketServer --server 1234 pos
- *  $ echo -e 'PARSEDOC\t"hello world."' | nc localhost 1234 | xxd
+ * SOCKETSERVER EXAMPLE
+ * in one terminal start the server with e.g.
+		java -cp "lib/*:/home/sw/corenlp/stanford-corenlp-full-2015-04-20/*" corenlp.SocketServer --server 1234 --configdict '{"annotators": "tokenize, ssplit"}' 
+ * In a second terminal send it the command
+		echo -e 'PARSEDOC\t"hello world."' | nc localhost 1234 | xxd
  *  The first few xxd lines are:
 0000000: 0000 0000 0000 00b3 7b22 7365 6e74 656e  ........{"senten
 0000010: 6365 7322 3a5b 7b22 706f 7322 3a5b 2255  ces":[{"pos":["U
 0000020: 4822 2c22 4e4e 222c 222e 225d 2c22 746f  H","NN","."],"to
+
+ * note that xxd doesnt read as far as possible so this is an incomplete view.
+
+ * PIPE OUTPUT EXAMPLE
+mkfifo out
+java -cp "lib/*:/home/sw/corenlp/stanford-corenlp-full-2015-04-20/*" corenlp.SocketServer --outpipe out --configdict '{"annotators": "tokenize, ssplit"}'
+PARSEDOC	"hi there"
+
+ * the last line was stdin typed into the process.  in the second terminal,
+xxd < out
+0000000: 0000 0000 0000 0046 7b22 7365 6e74 656e  .......F{"senten
+0000010: 6365 7322 3a5b 7b22 746f 6b65 6e73 223a  ces":[{"tokens":
+0000020: 5b22 6869 222c 2274 6865 7265 225d 2c22  ["hi","there"],"
+0000030: 6368 6172 5f6f 6666 7365 7473 223a 5b5b  char_offsets":[[
+
  */
 public class SocketServer {
 	JsonPipeline parser;
@@ -83,23 +100,20 @@ public class SocketServer {
 				throw new RuntimeException("don't know option: " + args[0]);
 			}
 		}
-
 		runner.parser.initializeCorenlpPipeline();
+		System.err.println("[Server] corenlp pipeline initialized.");
 		
 		if (runner.doSocketServer) {
 			runner.socketServerLoop();
 		} else if (runner.doNamedPipes) {
-			assert false : "not implemented";
-//			runner.namedpipeLoop();
+			runner.namedpipeLoop();
 		} else {
 			throw new RuntimeException("no running mode selected");
 		}
 	}
 	
-	void namedpipeLoop() throws Exception {
-		
-	}
-	
+	/****** generic functions for both socket and pipe operation ******/
+
 	JsonNode runCommand(String command, String inputPayload) throws Exception {
 		switch (command) {
 		case "PARSEDOC":
@@ -132,7 +146,6 @@ public class SocketServer {
 			}
 	}
 	
-	/****** socket stuff ******/
 
 	ServerSocket parseServer = null;
 	
@@ -169,6 +182,26 @@ public class SocketServer {
 		outstream.write(resultToReturn);
 	}
 	
+	/*******  socket server stuff   ***********/
+	
+	void initializeSocketServer() {
+		try {
+			parseServer = new ServerSocket(port);
+			System.err.println("[Server] Started socket server on port "+port);
+		} catch (IOException e1) {
+			e1.printStackTrace();
+			System.exit(-1);
+		}
+	}
+
+	Socket getSocketConnection() throws IOException {
+		// could be smarter here and reuse same socket for multiple commands.
+		Socket clientSocket = parseServer.accept();
+//		System.err.println("Connection Accepted From: "+clientSocket.getInetAddress());
+		return clientSocket;
+		
+	}
+	
 	void socketServerLoop() throws JsonGenerationException, JsonMappingException, IOException {
 		// declare a server socket and a client socket for the server
 		// declare an input and an output stream
@@ -196,21 +229,24 @@ public class SocketServer {
 //		parseServer.close();
 	}
 	
-	void initializeSocketServer() {
-		try {
-			parseServer = new ServerSocket(port);
-			System.err.println("[Server] Started socket server on port "+port);
-		} catch (IOException e1) {
-			e1.printStackTrace();
-			System.exit(-1);
+
+	/***********  stdin/namedpipe loop  ***********/
+
+	void namedpipeLoop() throws JsonGenerationException, JsonMappingException, IOException {
+		BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, "UTF-8"));
+		String inputline;
+		System.err.println("[Server] Opening output stream");
+		BufferedOutputStream out = new BufferedOutputStream(
+				new FileOutputStream(outpipeFilename, true));
+//		OutputStream out = new FileOutputStream(outpipeFilename, true);
+		System.err.println("[Server] Waiting for commands on stdin");
+		while ( (inputline=reader.readLine()) != null) {
+			JsonNode result = parseAndRunCommand(inputline);
+			writeResultToStream(result, out);
+			out.flush();
+			checkTimings();
 		}
+
 	}
 
-	Socket getSocketConnection() throws IOException {
-		// could be smarter here and reuse same socket for multiple commands.
-		Socket clientSocket = parseServer.accept();
-//		System.err.println("Connection Accepted From: "+clientSocket.getInetAddress());
-		return clientSocket;
-		
-	}
 }
