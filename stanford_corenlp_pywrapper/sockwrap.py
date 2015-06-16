@@ -139,7 +139,7 @@ class CoreNLP:
         jars = [os.path.join(local_libdir, "*")]
         jars += corenlp_jars
         self.classpath = ':'.join(jars)
-        self.classpath += ":../bin:bin"  ## for eclipse java dev
+        # self.classpath += ":../bin:bin"  ## for eclipse java dev
 
         # LOG.info("CLASSPATH: " + self.classpath)
 
