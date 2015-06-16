@@ -90,7 +90,7 @@ class CoreNLP:
     def __init__(self, mode=None, 
             server_port=12340,
             comm_mode='SOCKET',  # SOCKET or PIPE
-            outpipe=None,
+            outpipe_filename_prefix="/tmp/corenlp_pywrap_pipe",
             configfile=None, configdict=None,
             corenlp_jars=(
                 "/home/sw/corenlp/stanford-corenlp-full-2015-04-20/*",
@@ -121,9 +121,12 @@ class CoreNLP:
         self.configfile = configfile
         self.configdict = configdict
         self.comm_mode = comm_mode
+        self.outpipe = None
 
         if self.comm_mode=='PIPE':
-            assert outpipe is not None, "need outpipe filename TODO make automatic"
+            tag = "pypid=%d_time=%s" % (os.getpid(), time.time())
+            self.outpipe = "%s_%s" % (outpipe_filename_prefix, tag)
+            assert not os.path.exists(self.outpipe)
 
         assert isinstance(corenlp_jars, (list,tuple))
 
@@ -142,25 +145,35 @@ class CoreNLP:
 
         self.start_server()
         # This probably is only half-reliable, but worth a shot.
-        atexit.register(self.kill_proc_if_running)
+        atexit.register(self.cleanup)
+
+    def cleanup(self):
+        self.kill_proc_if_running()
+        if self.outpipe and os.path.exists(self.outpipe):
+            os.unlink(self.outpipe)
 
     def __del__(self):
         # This is also an unreliable way to ensure the subproc is gone, but
         # might as well try
-        self.kill_proc_if_running()
+        self.cleanup()
 
     def start_server(self):
         self.kill_proc_if_running()
+
+        if self.comm_mode=='PIPE':
+            if not os.path.exists(self.outpipe):
+                os.mkfifo(self.outpipe)
+        
         cmd = command(**self.__dict__)
         LOG.info("Starting java subprocess, and waiting for signal it's ready, with command: %s" % cmd)
-        self.proc = subprocess.Popen(cmd, shell=True)
+        self.proc = subprocess.Popen(cmd, shell=True, stdin=subprocess.PIPE)
         time.sleep(STARTUP_BUSY_WAIT_INTERVAL_SEC)
 
         if self.comm_mode=='SOCKET':
             sock = self.get_socket(num_retries=100, retry_interval=STARTUP_BUSY_WAIT_INTERVAL_SEC)
             sock.close()
         elif self.comm_mode=='PIPE':
-            assert False
+            self.outpipe_fp = open(self.outpipe, 'r')
 
         while True:
             try:
@@ -245,7 +258,9 @@ class CoreNLP:
             sock.sendall(cmd + "\n")
             size_info_str = sock.recv(8)
         elif self.comm_mode == 'PIPE':
-            assert False
+            self.proc.stdin.write(cmd + "\n")
+            self.proc.stdin.flush()
+            size_info_str = self.outpipe_fp.read(8)
 
         # java "long" is 8 bytes, which python struct calls "long long".
         # java default byte ordering is big-endian.
@@ -255,10 +270,11 @@ class CoreNLP:
         chunks = []
         curlen = lambda: sum(len(x) for x in chunks)
         while True:
+            remaining_size = size_info - curlen()
             if self.comm_mode == 'SOCKET':
-                data = sock.recv(size_info - curlen())
+                data = sock.recv(remaining_size)
             elif self.comm_mode == 'PIPE':
-                assert False
+                data = self.outpipe_fp.read(remaining_size)
             chunks.append(data)
             if curlen() >= size_info: break
             if len(chunks) > 1000:
@@ -269,9 +285,13 @@ class CoreNLP:
 
 
 def test_simple():
+    gosimple()
+    gosimple(comm_mode='PIPE')
+
+def gosimple(**kwargs):
     assert_no_java("no java when starting")
 
-    p = CoreNLP("ssplit")
+    p = CoreNLP("ssplit", **kwargs)
     ret = p.parse_doc("Hello world.")
     print ret
     assert len(ret['sentences']) == 1
