@@ -37,10 +37,6 @@ LOG = logging.getLogger("CoreNLP_PyWrapper")
 LOG.setLevel("INFO")
 # LOG.setLevel("DEBUG")
 
-COMMAND = """
-exec {java_command} {java_options} -cp '{classpath}' 
-    corenlp.SocketServer {comm_info} {more_config}"""
-
 PARSEDOC_TIMEOUT_SEC = 60 * 5
 STARTUP_BUSY_WAIT_INTERVAL_SEC = 1.0
 
@@ -49,7 +45,7 @@ def command(mode=None, configfile=None, configdict=None, comm_mode='SOCKET',
         java_options="-Xmx4g -XX:ParallelGCThreads=1",
         **kwargs):
     d = {}
-    d.update(locals())
+    d.update(**locals())
     d.update(**kwargs)
 
     more_config = ""
@@ -75,7 +71,10 @@ def command(mode=None, configfile=None, configdict=None, comm_mode='SOCKET',
     elif comm_mode=='PIPE':
         d['comm_info'] = "--outpipe {outpipe}".format(**d)
 
-    return COMMAND.format(**d).replace("\n", " ")
+
+    cmd = """exec {java_command} {java_options} -cp '{classpath}' 
+    corenlp.SocketServer {comm_info} {more_config}"""
+    return cmd.format(**d).replace("\n", " ")
 
 
 class SubprocessCrashed(Exception):
