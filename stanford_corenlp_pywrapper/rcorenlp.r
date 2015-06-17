@@ -15,7 +15,7 @@ CoreNLP = function(
                 "/home/sw/stanford-srparser-2014-10-23-models.jar"),
             java_command="java",
             java_options="-Xmx4g -XX:ParallelGCThreads=1",
-            outpipe_filename_prefix="/tmp/corenlp_pywrap_pipe",
+            outpipe_filename_prefix="/tmp/corenlp_rwrap_pipe",
             ...
 ) {
 
