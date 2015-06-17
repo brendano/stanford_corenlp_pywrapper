@@ -199,8 +199,8 @@ the json. "It" and "telescope" are said to co-refer.
     compatibility, you'll have to edit the Java server code and re-compile with
     `./build.sh`.
 
-* To change the Java settings (such as the memory limit) you currently need to
-    edit the Python source.
+* To change the Java settings, see the `java_command` and `java_options`
+    arguments.
 
 * Output messages (on standard error) that start with `INFO:` or `WARNING:` are
     from our code, while everything else is from CoreNLP.
@@ -218,7 +218,8 @@ the json. "It" and "telescope" are said to co-refer.
 
 * Question: do [JPype](http://jpype.sourceforge.net/) or
     [Py4J](http://py4j.sourceforge.net/) work well?  They seemed complex which
-    is why we wrote our own IPC mechanism.  But if there's a better alternative, no need.
+    is why we wrote our own IPC mechanism.  But if there's a better
+    alternative, no need.
 
 ## Testing
 

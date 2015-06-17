@@ -4,6 +4,7 @@ Client and process monitor for the java socket server.
 
 from __future__ import division
 import subprocess, tempfile, time, os, logging, re, struct, socket, atexit, glob, itertools
+from copy import copy,deepcopy
 try:
     import ujson as json
 except ImportError:
@@ -37,18 +38,18 @@ LOG.setLevel("INFO")
 # LOG.setLevel("DEBUG")
 
 COMMAND = """
-exec {JAVA} -Xmx{XMX_AMOUNT} -XX:ParallelGCThreads=1 -cp '{classpath}'
+exec {java_command} {java_options} -cp '{classpath}' 
     corenlp.SocketServer {comm_info} {more_config}"""
-
-JAVA = "java"
-XMX_AMOUNT = "4g"
 
 PARSEDOC_TIMEOUT_SEC = 60 * 5
 STARTUP_BUSY_WAIT_INTERVAL_SEC = 1.0
 
-def command(mode=None, configfile=None, configdict=None, comm_mode='SOCKET', **kwargs):
+def command(mode=None, configfile=None, configdict=None, comm_mode='SOCKET',
+        java_command="java",
+        java_options="-Xmx4g -XX:ParallelGCThreads=1",
+        **kwargs):
     d = {}
-    d.update(globals())
+    d.update(locals())
     d.update(**kwargs)
 
     more_config = ""
@@ -84,14 +85,14 @@ class SubprocessCrashed(Exception):
 class CoreNLP:
 
     def __init__(self, mode=None, 
-            server_port=12340,
-            comm_mode='SOCKET',  # SOCKET or PIPE
-            outpipe_filename_prefix="/tmp/corenlp_pywrap_pipe",
             configfile=None, configdict=None,
             corenlp_jars=(
                 "/home/sw/corenlp/stanford-corenlp-full-2015-04-20/*",
                 "/home/sw/stanford-srparser-2014-10-23-models.jar",
-                )
+                ),
+            comm_mode='SOCKET',  # SOCKET or PIPE
+            server_port=12340, outpipe_filename_prefix="/tmp/corenlp_pywrap_pipe",
+            **more_configdict_args
             ):
         """
         mode: if you supply this as a single string, we'll use a prebaked set
@@ -107,6 +108,9 @@ class CoreNLP:
         is), or else as a python dictionary.  we just pass it on, though we
         will look at the annotators setting.
 
+        Extra keyword arguments are added to the configdict.
+        Note you can't pass options with dots in them this way.
+
         server_port: have to specify this if you want to run multple instances
         in separate processes.  todo we should use some other communication
         mechanism that doesnt have to worry about this
@@ -115,9 +119,13 @@ class CoreNLP:
         self.proc = None
         self.server_port = server_port
         self.configfile = configfile
-        self.configdict = configdict
         self.comm_mode = comm_mode
         self.outpipe = None
+
+        self.configdict = deepcopy(configdict)
+        if not self.configdict: self.configdict = {}
+        self.configdict.update(more_configdict_args)
+        if not self.configdict: self.configdict = None
 
         if self.comm_mode=='PIPE':
             tag = "pypid=%d_time=%s" % (os.getpid(), time.time())
@@ -334,3 +342,7 @@ if __name__=='__main__':
     if sys.argv[1]=='modes':
         for mode,d in MODES_items:
             print "  * `%s`: %s" % (mode, d['description'])
+    if sys.argv[1]=='modes_json':
+        # import json as stdjson
+        # print stdjson.dumps(MODES, indent=4)
+        print '"%s"' % json.dumps(MODES).replace('"', r'\"')
