@@ -46,10 +46,6 @@ XMX_AMOUNT = "4g"
 PARSEDOC_TIMEOUT_SEC = 60 * 5
 STARTUP_BUSY_WAIT_INTERVAL_SEC = 1.0
 
-#arg for mkstemp(dir=), so if None it defaults to somewhere
-TEMP_DIR = None
-
-
 def command(mode=None, configfile=None, configdict=None, comm_mode='SOCKET', **kwargs):
     d = {}
     d.update(globals())
