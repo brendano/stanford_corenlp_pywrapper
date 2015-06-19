@@ -5,6 +5,7 @@ Client and process monitor for the java socket server.
 from __future__ import division
 import subprocess, tempfile, time, os, logging, re, struct, socket, atexit, glob, itertools
 from copy import copy,deepcopy
+from pprint import pprint
 try:
     import ujson as json
 except ImportError:
@@ -40,7 +41,7 @@ LOG.setLevel("INFO")
 PARSEDOC_TIMEOUT_SEC = 60 * 5
 STARTUP_BUSY_WAIT_INTERVAL_SEC = 1.0
 
-def command(mode=None, configfile=None, configdict=None, comm_mode='SOCKET',
+def command(mode=None, configfile=None, configdict=None, comm_mode=None,
         java_command="java",
         java_options="-Xmx4g -XX:ParallelGCThreads=1",
         **kwargs):
@@ -70,6 +71,7 @@ def command(mode=None, configfile=None, configdict=None, comm_mode='SOCKET',
         d['comm_info'] = "--server {server_port}".format(**d)
     elif comm_mode=='PIPE':
         d['comm_info'] = "--outpipe {outpipe}".format(**d)
+    else: assert False, "need comm_mode to be SOCKET or PIPE but got " + repr(comm_mode)
 
 
     cmd = """exec {java_command} {java_options} -cp '{classpath}' 
@@ -89,7 +91,7 @@ class CoreNLP:
                 "/home/sw/corenlp/stanford-corenlp-full-2015-04-20/*",
                 "/home/sw/stanford-srparser-2014-10-23-models.jar",
                 ),
-            comm_mode='SOCKET',  # SOCKET or PIPE
+            comm_mode='PIPE',  # SOCKET or PIPE
             server_port=12340, outpipe_filename_prefix="/tmp/corenlp_pywrap_pipe",
             **more_configdict_args
             ):
@@ -290,16 +292,29 @@ class CoreNLP:
         return ''.join(chunks)
 
 
-def test_simple():
-    gosimple()
+def test_modes():
+    import pytest
+    gosimple(comm_mode='SOCKET')
     gosimple(comm_mode='PIPE')
+    with pytest.raises(AssertionError):
+        gosimple(comm_mode=None)
+    with pytest.raises(AssertionError):
+        gosimple(comm_mode='asdfasdf')
+
+def test_coref():
+    assert_no_java("no java when starting")
+    p = CoreNLP("coref")
+    ret = p.parse_doc("I saw Fred. He saw me.")
+    pprint(ret)
+    assert 'entities' in ret
+    assert isinstance(ret['entities'], list)
 
 def gosimple(**kwargs):
     assert_no_java("no java when starting")
 
     p = CoreNLP("ssplit", **kwargs)
     ret = p.parse_doc("Hello world.")
-    print ret
+    # pprint(ret)
     assert len(ret['sentences']) == 1
     assert u' '.join(ret['sentences'][0]['tokens']) == u"Hello world ."
 
@@ -323,16 +338,6 @@ def assert_no_java(msg=""):
 #     p = CoreNLP("pos")
 #     ret = p.parse_doc(open("allbrown.txt").read(), 0.5)
 #     assert ret is None
-#     p.kill_proc_if_running()
-#     assert_no_java()
-#
-# def test_crash():
-#     assert_no_java("no java when starting")
-#     p = CoreNLP("ssplit")
-#     p.crash()
-#     ret = p.parse_doc("Hello world.")
-#     assert len(ret['sentences'])==1
-#
 #     p.kill_proc_if_running()
 #     assert_no_java()
 
