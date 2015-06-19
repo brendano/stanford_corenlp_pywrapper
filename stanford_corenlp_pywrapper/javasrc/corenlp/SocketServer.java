@@ -197,6 +197,7 @@ public class SocketServer {
 
 	Socket getSocketConnection() throws IOException {
 		// could be smarter here and reuse same socket for multiple commands.
+//		log("sotimeout " + parseServer.getSoTimeout()); // seems to be 0 on both mac and linux, though linux is happy to return null and mac is not
 		Socket clientSocket = parseServer.accept();
 //		System.err.println("Connection Accepted From: "+clientSocket.getInetAddress());
 		return clientSocket;
@@ -223,7 +224,15 @@ public class SocketServer {
 				e.printStackTrace();
 				continue;
 			}
+//			log("COMMANDSTR " + commandstr);
+			if (commandstr==null) {
+				// on linux but not mac this seems to happen during startup
+				// when the client isn't actually asking anything but on the server accept() seems to try to get something anyway
+				continue;
+			}
 			JsonNode result = parseAndRunCommand(commandstr);
+//			log("RESULT " + result);
+			// result could be null.  let's just write it back since the client is waiting.
 			writeResultToStream(result, clientSocket.getOutputStream());
 			checkTimings();
 		}
