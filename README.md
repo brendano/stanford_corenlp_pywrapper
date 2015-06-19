@@ -202,8 +202,9 @@ the json. "It" and "telescope" are said to co-refer.
 * To change the Java settings, see the `java_command` and `java_options`
     arguments.
 
-* Output messages (on standard error) that start with `INFO:` or `WARNING:` are
-    from our code, while everything else is from CoreNLP.
+* Output messages (on standard error) that start with `INFO:CoreNLP_PyWrapper`,
+    `INFO:CoreNLP_JavaServer`, or `INFO:CoreNLP_RWrapper` are from our code.
+    Other output is probably from CoreNLP.
 
 * Only works on Unix (Linux and Mac).  Does not currently work on Windows.
 
