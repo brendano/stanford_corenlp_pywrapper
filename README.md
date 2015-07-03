@@ -213,11 +213,14 @@ the json. "It" and "telescope" are said to co-refer.
 * If you want to know the latest version of CoreNLP this has been tested with,
     look at the paths in the default options in the Python source code.
 
-* Implementation: By default, the inter-process communication is through named
-    pipes, established with Unix calls. As an alternative, there is also
-    a socket server mode (`comm_mode='SOCKET'`) which might be more robust, but
-    requires using a port number.  It's not much of a server since the python
-    code assumes it's the only process communicating with it.
+* `SOCKET` mode: By default, the inter-process communication is
+    through named pipes, established with Unix calls. As an alternative, there is
+    also a socket server mode (`comm_mode='SOCKET'`) which is sometimes more robust,
+    but requires using a port number, which you have to ensure does not
+    conflict with any other processes running at the same time.  (It's not much
+    of a server since the python code assumes it's the only process
+    communicating with it.)  One advantage of `SOCKET' mode is that it has
+    a timeout, in case CoreNLP is taking a very long time to return an answer.
 
 * Question: do [JPype](http://jpype.sourceforge.net/) or
     [Py4J](http://py4j.sourceforge.net/) work well?  They seemed complex which
