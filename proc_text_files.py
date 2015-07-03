@@ -13,8 +13,8 @@ python proc_text_files.py pos *.txt
 import sys, re
 mode = sys.argv[1]
 
-import stanford_corenlp_pywrapper.sockwrap as sw
-ss = sw.SockWrap(mode)  # need to override corenlp_jars
+from stanford_corenlp_pywrapper import CoreNLP
+ss = CoreNLP(mode)  # need to override corenlp_jars
 
 for filename in sys.argv[2:]:
     outfile = re.sub(r'\.txt$',"", filename) + ".anno"

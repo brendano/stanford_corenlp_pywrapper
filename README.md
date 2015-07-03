@@ -29,9 +29,8 @@ The Java required version is whatever CoreNLP needs, perhaps version 8.
 
 ## Commandline usage
 
-See `proc_text_files.py` for an example of processing text files, or
-`proc_doc_lines.py` for an alternative format. Note that you'll have to edit
-them to specify the jar paths as described below.
+See `proc_text_files.py` for an example of processing text files.
+Note that you'll have to edit it to specify the jar paths as described below.
 
 ## Usage from Python
 
@@ -62,11 +61,14 @@ Here's how to initialize the pipeline with the `pos` mode:
 If things are working there will be lots of messages looking something like:
 
 ```
-INFO:CoreNLP_PyWrapper:mode given as 'ssplit' so setting annotators: tokenize, ssplit
-INFO:CoreNLP_PyWrapper:Starting java subprocess, and waiting for signal it's ready, with command:  exec java -Xmx4g -XX:ParallelGCThreads=1 -cp '/Users/brendano/sw/nlp/stanford_corenlp_pywrapper/stanford_corenlp_pywrapper/lib/*:/home/sw/corenlp/stanford-corenlp-full-2015-04-20/*'     corenlp.SocketServer --outpipe /tmp/corenlp_pywrap_pipe_pypid=96700_time=1434492109.34  --configdict '{"annotators":"tokenize, ssplit"}'
+INFO:CoreNLP_PyWrapper:mode given as 'pos' so setting annotators: tokenize, ssplit, pos, lemma
+INFO:CoreNLP_PyWrapper:Starting java subprocess, and waiting for signal it's ready, with command: exec java -Xmx4g -XX:ParallelGCThreads=1 -cp '/Users/brendano/sw/nlp/stanford_corenlp_pywrapper/stanford_corenlp_pywrapper/lib/*:/home/sw/corenlp/stanford-corenlp-full-2015-04-20/*:/home/sw/stanford-srparser-2014-10-23-models.jar'      corenlp.SocketServer --outpipe /tmp/corenlp_pywrap_pipe_pypid=140_time=1435943221.14  --configdict '{"annotators":"tokenize, ssplit, pos, lemma"}'
 Adding annotator tokenize
 TokenizerAnnotator: No tokenizer type provided. Defaulting to PTBTokenizer.
 Adding annotator ssplit
+Adding annotator pos
+Reading POS tagger model from edu/stanford/nlp/models/pos-tagger/english-left3words/english-left3words-distsim.tagger ... done [1.7 sec].
+Adding annotator lemma
 INFO:CoreNLP_JavaServer: CoreNLP pipeline initialized.
 INFO:CoreNLP_JavaServer: Waiting for commands on stdin
 INFO:CoreNLP_PyWrapper:Successful ping. The server has started.
@@ -99,13 +101,13 @@ say we want to parse but don't want lemmas. This can be done
 with the `configdict` option:
 
 ```
->>> p = sockwrap.SockWrap(configdict={'annotators':'tokenize, ssplit, pos, parse'}, output_types=['pos','parse'])
+>>> p = CoreNLP(configdict={'annotators':'tokenize, ssplit, pos, parse'}, output_types=['pos','parse'])
 ```
 
 Or use an external configuration file (of the same sort the original CoreNLP commandline uses):
 
 ```
->>> p = sockwrap.SockWrap(configfile='sample.ini')
+>>> p = CoreNLP(configfile='sample.ini')
 >>> p.parse_doc("hello world. how are you?")
 ...
 ```
