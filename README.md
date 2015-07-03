@@ -233,6 +233,15 @@ There's a tiny amount of pytest-style tests.
 
     py.test -v sockwrap.py
 
+## Changelog
+
+Major changes include
+
+  * 2015-07-03: add pipe mode and make it default (the *namedpipe* branch), plus an R wrapper.
+  * 2015-05-15: no longer need to specify `output_types` (the outputs to include are inferred from the `annotators` setting).
+
+For details see the commit log.
+
 ## License etc.
 
 Copyright Brendan O'Connor (http://brenocon.com).  
