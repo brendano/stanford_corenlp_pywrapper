@@ -23,9 +23,14 @@ pip install .
 ```
 
 Or you can just put the `stanford_corenlp_pywrapper` subdirectory into your
-project (or use virtualenv or whatever).
+project (or use virtualenv, etc.).  For example:
 
-The Java required version is whatever CoreNLP needs, perhaps version 8.
+```
+git clone https://github.com/brendano/stanford_corenlp_pywrapper scp_repo
+ln -s scp_repo/stanford_corenlp_pywrapper .
+```
+
+Java needs to be a version that CoreNLP is happy with; perhaps version 8.
 
 ## Commandline usage
 
