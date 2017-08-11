@@ -11,6 +11,13 @@ Alternatives you may want to consider:
 
 [c]: http://nlp.stanford.edu/software/corenlp.shtml
 
+Obsolete notice?: This was written around 2015 or so.  But at some point
+(later?) CoreNLP added its own server mode, which is better to use than the
+server included inside of this package -- it stays up to date with their
+system, presumably -- and also it now has native JSON output support.  This
+package should probably be replaced with a python client for that server and
+possibly the process management support.
+
 ## Install
 
 You need to have CoreNLP already downloaded.
