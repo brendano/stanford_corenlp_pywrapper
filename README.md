@@ -1,3 +1,10 @@
+UPDATE MARCH 2018: this code is obsolete, beyond the issue of version compatibility issues, because CoreNLP has an easy-to-use and well-documented server mode now (I think for a while?).
+Example of using it: https://gist.github.com/brendano/29d9dc619bd7e087b459e6027a52af89
+
+The only possible advantage of this wrapper code is that it does process management for you under the python process, which might be slightly convenient since you don't have to run a separate server.  But this architecture is much worse with regards to parallelization (the external server can load resources only once and use threads to parallelize for multiple clients) and certain types of development convenience (with an external server, you don't have to re-load the models during development).  I guess this code could be useful if you have to use an older CoreNLP version (for example, if you want to replicate older research results that depend on older formats of things).
+
+=========================================================
+
 This is a Python wrapper for the [Stanford CoreNLP][c] library for Unix (Mac,
 Linux), allowing sentence splitting, POS/NER, temporal expression, constituent
 and dependency parsing, and coreference annotations. It runs the Java software
